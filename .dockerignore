@@ -1,0 +1,9 @@
+.git
+.github
+.agents
+node_modules
+output
+.tmp
+.env*
+**/*.db*
+internal/webui/dist

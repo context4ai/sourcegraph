@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>接入 · Context Source Graph</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/base.css?v=20260927-5">
+  <script src="assets/clients.js?v=20260927-5"></script>
+  <script src="assets/app.js?v=20260927-5"></script>
+  <script src="assets/select.js?v=20260927-5"></script>
+  <script src="assets/client-panel.js?v=20260927-5"></script>
+</head>
+<body data-page="connect" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+
+<main class="mx-auto max-w-page px-5 sm:px-8">
+  <section class="pb-8 pt-10 sm:pt-12">
+    <h1 class="type-page" data-en="Connect your agent">接入你的 Agent</h1>
+    <p class="type-deck lede mt-4" data-en="Choose the setup for your scenario">按使用场景选择对应的接入配置</p>
+  </section>
+
+  <section id="client-panel"></section>
+
+  <section id="tools" class="mt-20 border-t rule pt-12">
+    <div class="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div>
+        <h2 class="type-section" data-en="What your agent can do">接入后 Agent 能做什么</h2>
+        <p class="type-deck mt-4" data-en="Usually one search is enough. Read when more context is needed">大多数时候一次 search 就够，需要上下文再 read</p>
+        <ol id="flow-steps" class="-mx-3 mt-8 space-y-1"></ol>
+        <p class="type-fig mt-8" data-en="also available">其他工具</p>
+        <dl id="flow-more" class="mt-2 text-[13.5px]"></dl>
+      </div>
+      <div class="field relative overflow-hidden">
+        <div id="flow-progress" class="progress"></div>
+        <div class="flex items-center gap-3 px-5 pt-4">
+          <span class="type-fig shrink-0">Agent · context-sourcegraph</span>
+          <button id="flow-replay" class="invisible ml-auto shrink-0 text-[12.5px] text-muted hover:text-ink"></button>
+        </div>
+        <div aria-live="polite" id="flow-trace" class="min-h-[260px] px-5 pb-5 pt-4 font-mono text-[12.5px] leading-[1.75]"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="syntax" class="mt-20 border-t rule pt-12">
+    <h2 class="type-section" data-en="How to write a search">搜索怎么写</h2>
+    <p class="type-deck lede mt-4" data-en="Write it as you would for rg: pattern is a regular expression matched line by line against file contents, and the options match rg's flags. The home page and the agent's search tool take the same arguments">和 rg 的写法一样：pattern 是逐行匹配文件内容的正则，开关与 rg 参数一一对应。首页和 Agent 的 search 工具参数相同</p>
+    <div class="mt-8 flex gap-1" id="syntax-tabs" role="tablist"></div>
+    <div id="syntax-cases" class="mt-6 space-y-8"></div>
+    <div class="mt-10 border-t rule pt-8">
+      <h3 class="text-[18px] font-medium" data-en="Choose a call for the task">按场景选择调用</h3>
+      <p class="mt-2 text-[13px] text-muted" data-en="Examples below are tool arguments. Replace group/name and file paths; use the commit returned by search for follow-up reads">以下是工具参数。请替换 group/name 和文件路径；后续读取使用搜索返回的 commit</p>
+      <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="min-w-0">
+          <h4 class="text-[14px] font-medium" data-en="01 · Assess relevance">01 · 判断相关性</h4>
+          <pre class="field mt-3 overflow-x-auto p-4 text-[12px]"><code>search
+{"repo":"group/name",
+ "pattern":"review",
+ "max_lines_per_file":2}</code></pre>
+          <p class="mt-3 text-[13px] text-muted" data-en="Read a few matching lines per file. Use output: files only when paths alone are sufficient">先看每个文件的少量命中片段；只需要路径时才选 output: files</p>
+        </div>
+        <div class="min-w-0">
+          <h4 class="text-[14px] font-medium" data-en="02 · Match alternatives">02 · 匹配多个候选词</h4>
+          <pre class="field mt-3 overflow-x-auto p-4 text-[12px]"><code>search
+{"repo":"group/name",
+ "pattern":"review|approval",
+ "ignore_case":true,
+ "paths":["knowledge"],
+ "max_lines_per_file":2}</code></pre>
+          <p class="mt-3 text-[13px] text-muted" data-en="Same as rg -i 'review|approval' knowledge. Each line matching any alternative is returned">等同 rg -i 'review|approval' knowledge，返回命中任一候选词的行</p>
+        </div>
+        <div class="min-w-0">
+          <h4 class="text-[14px] font-medium" data-en="03 · Read several known ranges">03 · 批量读取已知范围</h4>
+          <pre class="field mt-3 overflow-x-auto p-4 text-[12px]"><code>read_many
+{"repo":"group/name",
+ "revision":"&lt;commit&gt;",
+ "files":[
+  {"path":"a.ts","start_line":20,"end_line":60},
+  {"path":"b.ts","start_line":1,"end_line":40}
+ ]}</code></pre>
+          <p class="mt-3 text-[13px] text-muted" data-en="Check each item. Continue from NextStartLine at the same commit when more content is needed">逐项检查结果；需要剩余内容时，在同一 commit 从 NextStartLine 继续读</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="plugins" class="mt-20 scroll-mt-14 border-t rule pt-12">
+    <div class="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div class="min-w-0">
+        <h2 class="type-section" data-en="Extend returned content with plugins">通过插件扩展返回内容</h2>
+        <p class="type-deck mt-4" data-en="Repository-specific business information, returned with the same MCP read">仓库定制业务信息，随同一次 MCP 读取返回</p>
+        <div class="mt-8 space-y-5">
+          <div class="flex gap-4"><span class="font-mono text-[12px] text-muted pt-1">01</span><div><h3 class="text-[14px]" data-en="Write a plugin and commit it with your repository">编写插件，随仓库提交</h3><p class="mt-1 text-[13px] text-muted" data-en="Place the Wasm file at the root or in a registered Monorepo directory">Wasm 放在根目录或 Monorepo 登记目录</p></div></div>
+          <div class="flex gap-4"><span class="font-mono text-[12px] text-muted pt-1">02</span><div><h3 class="text-[14px]" data-en="Customize the returned business information">业务自定义返回内容</h3><p class="mt-1 text-[13px] text-muted" data-en="Process read parameters and results to present evidence chains or recommend related content">插件可以根据查询条件和结果，继续进行信息处理，可以实现证据链呈现、相关内容推荐</p></div></div>
+          <div class="flex gap-4"><span class="font-mono text-[12px] text-muted pt-1">03</span><div><h3 class="text-[14px]" data-en="Agents read more through MCP">Agent 通过 MCP 方法读取到更多内容</h3><p class="mt-1 text-[13px] text-muted" data-en="Explore more context around retrieved snippets through extension fields in the response">通过返回结果中的扩展字段了解更多检索片段的上下文</p></div></div>
+        </div>
+        <a href="/sourcegraph/plugins/llms.txt" target="_blank" rel="noopener noreferrer" class="mt-6 inline-block text-[14px] text-muted underline-offset-2 hover:text-ink hover:underline" data-en="Plugin extensions and usage">插件扩展与使用</a>
+      </div>
+      <div class="min-w-0">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <span class="type-fig" id="plugin-demo-label">READ / READ_MANY + WASM PLUGIN</span>
+          <div class="inline-flex rounded-control bg-ink/[0.04] p-1" role="group" aria-label="Plugin demonstration" id="plugin-demo-modes">
+            <button type="button" data-plugin-mode="off" aria-pressed="false" class="rounded-[6px] px-3 py-1.5 text-[12px] text-muted" data-en="Original only">只读原文</button>
+            <button type="button" data-plugin-mode="auto" aria-pressed="true" class="rounded-[6px] bg-paper px-3 py-1.5 text-[12px] text-ink" data-en="With plugin">插件增强</button>
+          </div>
+        </div>
+        <div class="field overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b rule px-5 py-4 font-mono text-[12px]">
+            <span>read <span class="text-muted">knowledge/onboarding.md</span></span>
+            <span class="text-muted" id="plugin-demo-mode">plugins=auto</span>
+          </div>
+          <div class="p-5 sm:p-6">
+            <div class="flex items-center gap-3"><span class="font-mono text-[12px]">content</span><span class="h-px flex-1 bg-ink/10"></span><span class="type-fig" data-en="Original content">原始正文</span></div>
+            <div class="mt-5 space-y-2 text-[14px] leading-relaxed">
+              <div class="flex gap-4"><span class="font-mono text-[12px] text-muted/60">12</span><span data-en="## How onboarding works">## 入驻流程</span></div>
+              <div class="flex gap-4"><span class="font-mono text-[12px] text-muted/60">13</span><span data-en="An approved application moves to account activation">申请通过审核后，进入账号开通流程。</span></div>
+            </div>
+            <div id="plugin-demo-extra" class="mt-7 border-t rule pt-5">
+              <div class="flex flex-wrap items-center gap-2 text-[12px]"><span class="text-live" aria-hidden="true">＋</span><span class="font-mono">references</span><span class="ml-auto text-muted" data-en="Example · context-evidence">示例 · context-evidence</span></div>
+              <div class="mt-4 border-l-2 border-live/40 pl-4">
+                <p class="text-[14px]" data-en="Where this statement comes from">这段说明来自哪里</p>
+                <p class="mt-3 break-all font-mono text-[12px]">src/onboarding/approval.ts<span class="text-muted">:42–68</span></p>
+                <p class="mt-1 font-mono text-[12px] text-muted">example/service <span aria-hidden="true">·</span> a1b2c3d…</p>
+                <p class="mt-3 text-[12px] text-muted" data-en="Recorded source reference; the agent can read it next">已登记的来源位置，Agent 可继续按引用读取</p>
+              </div>
+            </div>
+            <div id="plugin-demo-plain" class="mt-7 hidden border-t rule pt-5 text-[13px] text-muted" data-en="Only the original content is returned. No plugin runs">仅返回原文，不执行插件。</div>
+          </div>
+          <div class="flex items-center gap-2 border-t rule px-5 py-3 text-[12px] text-muted"><span class="dot"></span><span id="plugin-demo-caption"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module" src="assets/connect-page.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仓库详情 · Context Source Graph</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/base.css?v=20260927-5">
+  <script src="assets/app.js?v=20260927-5"></script>
+  <script src="assets/select.js?v=20260927-5"></script>
+</head>
+<body data-page="repos" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+
+<main class="mx-auto max-w-page px-5 sm:px-8">
+  <section class="pb-8 pt-8 sm:pt-10">
+    <a href="/sourcegraph/repos" class="inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink" data-en="&larr; All repositories">&larr; 全部仓库</a>
+    <div class="mt-6 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <div class="min-w-0">
+        <h1 id="title" class="break-all font-mono text-[clamp(24px,2.8vw,32px)] font-medium leading-tight tracking-tight"></h1>
+        <p id="deck" class="mt-2.5 text-[14.5px] leading-6 text-muted"></p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <a id="search" class="rounded-control bg-ink px-3 py-1.5 text-[13.5px] font-medium text-paper hover:opacity-90" data-en="Search this repository">搜索此仓库</a>
+        <button id="sync" class="rounded-control bg-ink/[0.05] px-3 py-1.5 text-[13.5px] hover:bg-ink/[0.08]" data-en="Check for updates">检查更新</button>
+        <details class="relative">
+          <summary id="manage" class="flex cursor-pointer list-none items-center gap-1.5 rounded-control px-3 py-1.5 text-[13.5px] text-muted hover:bg-sand hover:text-ink"></summary>
+          <div id="manage-menu" class="lift absolute right-0 z-20 mt-2 w-60 rounded-surface bg-card p-1.5 text-[13.5px]"></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <p id="load-error" role="alert" class="mb-4 text-[14px] text-danger empty:hidden"></p>
+  <nav id="tabs" class="flex gap-5 border-t rule pt-5 text-[14px]"></nav>
+  <section id="panel" class="pt-8"></section>
+</main>
+
+<dialog id="confirm" class="lift w-[min(92vw,480px)] rounded-float bg-card p-0 text-ink backdrop:bg-black/40"></dialog>
+
+<div id="site-footer"></div>
+
+<script src="assets/management.js"></script>
+<script src="assets/branch-input.js"></script>
+<script src="assets/path-input.js"></script>
+<script src="assets/repo-maintenance.js"></script>
+<script src="assets/repo-plugins.js"></script>
+<script src="assets/repo-page.js"></script>
+</body>
+</html>

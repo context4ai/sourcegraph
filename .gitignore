@@ -1,0 +1,9 @@
+node_modules/
+output/
+.tmp/
+.env*
+internal/webui/dist/*
+!internal/webui/dist/README.txt
+*.db
+*.db-wal
+*.db-shm

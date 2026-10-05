@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>状态 · Context Source Graph</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/base.css?v=20260927-5">
+  <script src="assets/app.js?v=20260927-5"></script>
+  <script src="assets/select.js?v=20260927-5"></script>
+</head>
+<body data-page="ops" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+
+<main class="mx-auto max-w-page px-5 sm:px-8">
+  <section class="pb-10 pt-10 sm:pt-12">
+    <h1 id="headline" class="type-page"></h1>
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-4"><p id="health" class="type-deck lede"></p><a id="query-errors-link" href="/sourcegraph/query-errors" class="hidden shrink-0 text-[14px] text-muted hover:underline underline-offset-4" data-en="View error logs">查看错误日志</a></div>
+    <div class="mt-6 flex items-center gap-3">
+      <div class="flex items-center gap-1 rounded-control bg-ink/[0.04] p-1 text-[13px]" id="win"></div>
+      <span id="updated" class="type-fig"></span>
+    </div>
+  </section>
+
+  <p id="load-error" role="alert" class="mb-4 text-[14px] text-danger empty:hidden"></p>
+  <section class="border-t rule pt-10">
+    <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4" id="figs"></div>
+    <figure class="relative mt-12">
+      <svg id="chart" viewBox="0 0 600 140" class="h-40 w-full cursor-default" preserveAspectRatio="none"></svg>
+      <div id="chart-tip" role="status" class="lift pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max min-w-40 -translate-x-1/2 rounded-surface bg-card px-3 py-2.5 text-[12.5px] leading-relaxed text-ink"></div>
+      <figcaption class="mt-3 flex flex-wrap justify-between gap-2">
+        <span class="type-fig" data-en="Current process · resets on restart · refreshes every 30s">当前进程 · 重启后重新统计 · 每 30 秒刷新</span>
+        <span class="type-fig" id="range"></span>
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="mt-20 border-t rule pt-10">
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <h2 class="type-section" data-en="Instances">实例</h2>
+      <span id="inst-sum" class="text-[14px] text-muted"></span>
+    </div>
+    <div id="inst" class="mt-6 space-y-3"></div>
+  </section>
+
+  <section class="mt-20 border-t rule pt-10">
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <h2 class="type-section" data-en="Preparation queue">准备队列</h2>
+      <span id="queue-sum" class="text-[14px] text-muted"></span>
+    </div>
+    <div id="jobs" class="-mx-3 mt-6"></div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script src="assets/management.js"></script>
+<script src="assets/operations-page.js"></script>
+</body>
+</html>

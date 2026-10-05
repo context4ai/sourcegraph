@@ -1,0 +1,114 @@
+/* Design tokens and motion for the application. The rules behind them are in DESIGN.md. */
+
+:root {
+  --tint: 106;
+  --paper: 0.992 0.002 var(--tint);
+  --ink: 0.145 0.006 var(--tint);
+  --card: 0.992 0.002 var(--tint);
+  --sand: 0.97 0.004 var(--tint);
+  --muted: 0.556 0.007 var(--tint);
+  --live: 0.623 0.214 259.8;
+  --danger: 0.577 0.245 27;
+  --ok: 0.627 0.17 149;
+  --warn: 0.769 0.188 70;
+  --hit: 0.93 0.11 95;
+  --glint: 0.82 0.14 82;
+  --page-width: 1280px;
+  --font-display: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+.dark {
+  --paper: 0.17 0.003 var(--tint);
+  --ink: 0.985 0.002 var(--tint);
+  --card: 0.215 0.003 var(--tint);
+  --sand: 0.275 0.004 var(--tint);
+  --muted: 0.708 0.004 var(--tint);
+  --danger: 0.704 0.191 22;
+  --hit: 0.46 0.09 88;
+  color-scheme: dark;
+}
+
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { font-feature-settings: 'cv11', 'ss01'; }
+pre, code, .font-mono { font-variant-ligatures: none; }
+::selection { background: oklch(var(--live) / 0.22); }
+
+/* Type roles (closed set). */
+.type-hero { font-family: var(--font-display); font-weight: 500; font-size: clamp(34px, 6.2vw, 72px); line-height: 1.02; letter-spacing: -0.015em; }
+.type-page { font-family: var(--font-display); font-weight: 500; font-size: clamp(30px, 3.6vw, 40px); line-height: 1.1; letter-spacing: -0.012em; }
+.type-section { font-family: var(--font-display); font-weight: 500; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.15; letter-spacing: -0.01em; }
+.type-deck { font-size: 16px; line-height: 1.6; color: oklch(var(--muted)); max-width: 34rem; }
+.type-deck.lede { max-width: none; }
+.type-fig { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.01em; color: oklch(var(--muted)); }
+
+/* Surfaces. A field panel groups machine content without a border. */
+.field { background: oklch(var(--ink) / 0.025); border-radius: 6px; }
+.dark .field { background: oklch(var(--ink) / 0.04); }
+.rule { border-color: oklch(var(--ink) / 0.1); }
+.row-hover:hover { background: oklch(var(--ink) / 0.025); }
+.dark .row-hover:hover { background: oklch(var(--ink) / 0.04); }
+.lift { box-shadow: 0 1px 2px oklch(0 0 0 / 0.06), 0 12px 32px -8px oklch(0 0 0 / 0.18); }
+.dark .lift { box-shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 40px -8px oklch(0 0 0 / 0.6); }
+/* Search option toggles, as in an editor's find box. */
+.search-opt { border-radius: 6px; padding: 3px 6px; font-family: var(--font-mono); font-size: 12px; line-height: 1.2; color: oklch(var(--muted)); }
+.search-opt:hover { background: oklch(var(--ink) / 0.05); color: oklch(var(--ink)); }
+.search-opt[aria-pressed="true"] { background: oklch(var(--ink) / 0.08); color: oklch(var(--ink)); }
+kbd { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 5px; border-radius: 4px; background: oklch(var(--ink) / 0.06); color: oklch(var(--muted)); }
+
+/* Code. */
+mark.hit { background: oklch(var(--hit)); color: inherit; border-radius: 2px; padding: 0 1px; }
+.code-line { display: flex; }
+.code-line.sel { background: oklch(var(--live) / 0.08); box-shadow: inset 2px 0 oklch(var(--live)); }
+.tok-k { color: oklch(0.55 0.17 300); }
+.tok-s { color: oklch(0.55 0.13 150); }
+.tok-c { color: oklch(var(--muted)); font-style: italic; }
+.dark .tok-k { color: oklch(0.76 0.13 300); }
+.dark .tok-s { color: oklch(0.78 0.12 150); }
+
+/* Status dot. Live is the only animated one. */
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
+.dot-live { color: oklch(var(--live)); animation: dot-live 1.4s ease-in-out infinite; }
+@keyframes dot-live { 50% { opacity: 0.35; } }
+
+/* number-roll: each digit is a vertical strip that slides to its value. */
+.roll { display: inline-flex; font-variant-numeric: tabular-nums; }
+.roll-d { position: relative; display: inline-block; height: 1em; line-height: 1em; overflow: hidden; }
+.roll-v { color: transparent; }
+.roll-s { position: absolute; left: 0; top: 0; transition: transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.roll-s::before { content: "0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9"; display: block; white-space: pre; line-height: 1em; }
+
+/* result-cascade */
+.cascade > * { animation: rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+.fade-in { animation: rise 220ms ease-out both; }
+
+/* stage-progress: a 1px live line while a request is in flight. */
+.progress { position: absolute; left: 0; right: 0; top: -1px; height: 1px; overflow: hidden; opacity: 0; transition: opacity 160ms; }
+.progress.on { opacity: 1; }
+.progress::after { content: ''; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, oklch(var(--live)), transparent); animation: progress 700ms linear infinite; }
+@keyframes progress { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+/* hero-caret */
+.caret::after { content: ''; display: inline-block; width: 0.08em; height: 0.9em; margin-left: 0.06em; vertical-align: -0.08em; background: currentColor; animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+
+::view-transition-old(results), ::view-transition-new(results) { animation-duration: 260ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Query examples wrap as separate controls; narrow screens get one per row. */
+#try { display: flex; align-items: baseline; gap: 0.5rem; max-width: 100%; min-width: 0; }
+#try:empty { display: none; }
+.try-label { flex-shrink: 0; }
+.try-examples { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; min-width: 0; }
+.try-examples button { max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  #try { flex-basis: 100%; margin-left: 0; align-items: flex-start; }
+  .try-examples { flex: 1; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+  .try-examples button { padding-block: 0.25rem; line-height: 1.6; }
+}
+:focus-visible { outline: 2px solid oklch(var(--live)); outline-offset: 3px; }
+.outline-none:focus-visible { outline: none; }

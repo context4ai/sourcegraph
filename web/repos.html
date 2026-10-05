@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仓库 · Context Source Graph</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/base.css?v=20260927-5">
+  <script src="assets/app.js?v=20260927-5"></script>
+  <script src="assets/select.js?v=20260927-5"></script>
+</head>
+<body data-page="repos" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+
+<main class="mx-auto max-w-page px-5 sm:px-8">
+  <section class="flex flex-wrap items-end justify-between gap-x-10 gap-y-6 pb-10 pt-10 sm:pt-12">
+    <div>
+      <h1 class="type-page" data-en="Searchable repositories">可以搜索的仓库</h1>
+      <p class="type-deck lede mt-4" data-en="Register each repository once. Index the full repository or selected monorepo paths">每个仓库只需登记一次，可全量索引或按需监听 Monorepo 目录</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span id="summary" class="type-fig"></span>
+      <button id="add" class="flex items-center gap-1.5 rounded-control bg-ink px-3 py-1.5 text-[13.5px] font-medium text-paper hover:opacity-90"></button>
+    </div>
+  </section>
+
+  <section class="border-t rule pt-8">
+    <div class="flex flex-wrap items-center gap-3">
+      <input id="filter" class="w-64 rounded-control bg-ink/[0.04] px-3 py-1.5 font-mono text-[13px] outline-none placeholder:text-muted/70 focus:bg-ink/[0.06]" placeholder="按名称筛选" data-en-ph="Filter by name">
+      <label id="show-deleted-wrap" class="hidden items-center gap-2 text-[13px] text-muted"><input id="show-deleted" type="checkbox" class="accent-current"><span data-en="Show deleted">显示已删除</span></label>
+      <span id="updated" class="type-fig ml-auto"></span>
+    </div>
+    <p id="load-error" role="alert" class="mt-4 text-[14px] text-danger empty:hidden"></p>
+    <div id="cards" class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2"></div>
+    <p id="empty" class="mt-6 hidden text-[14px] text-muted" data-en="No repository matches">没有匹配的仓库</p>
+  </section>
+</main>
+
+<!-- Register sheet (signed-in only) -->
+<div id="drawer" class="fixed inset-0 z-40 hidden">
+  <div class="absolute inset-0 bg-ink/20 dark:bg-black/50" data-close></div>
+  <aside class="lift fade-in absolute bottom-2 right-2 top-2 flex w-[calc(100%-1rem)] max-w-[480px] flex-col rounded-float bg-card">
+    <div class="flex items-start px-6 pb-2 pt-6">
+      <div>
+        <h2 class="font-display text-[20px] font-medium" data-en="Register a repository">登记仓库</h2>
+      </div>
+      <button class="ml-auto rounded-[6px] px-2 py-1 text-muted hover:bg-sand hover:text-ink" data-close aria-label="close">✕</button>
+    </div>
+    <form id="form" class="flex-1 space-y-7 overflow-y-auto px-6 py-5 text-[14px]">
+      <div>
+        <label for="f-name" class="text-muted" data-en="Repository name (group/name)">仓库名称（group/name）</label>
+        <div class="mt-1.5 flex items-center gap-2">
+          <select id="f-code-provider" aria-label="代码服务" class="w-32 shrink-0 rounded-control bg-ink/[0.04] px-3 py-2 text-[13.5px]"><option value="github">GitHub</option><option value="git">Git</option></select>
+          <input id="f-name" required class="min-w-0 flex-1 rounded-control bg-ink/[0.04] px-3 py-2 font-mono text-[13.5px] outline-none ring-1 ring-transparent focus:ring-ink/20" placeholder="context4ai/context">
+        </div>
+      </div>
+      <div>
+        <label for="f-index-mode" class="text-muted" data-en="Indexing mode">索引模式</label>
+        <select id="f-index-mode" class="mt-1.5 block w-full rounded-control bg-ink/[0.04] px-3 py-2 text-[13.5px]"><option value="full" data-en="Full repository">全量索引</option><option value="monorepo" data-en="Monorepo on demand">Monorepo 按需</option></select>
+      </div>
+      <div id="f-paths-wrap" class="hidden">
+        <label for="f-paths" class="text-muted" data-en="Watched paths and groups">监听路径与分组</label><input id="f-paths">
+      </div>
+      <div>
+        <label for="f-branches" class="text-muted" data-en="Watched branches, up to 8">监听分支，最多8个</label>
+        <input id="f-branches">
+      </div>
+      <div>
+        <label for="f-sync-interval" class="text-muted" data-en="Sync interval">同步间隔</label>
+        <select id="f-sync-interval" class="mt-1.5 block w-full rounded-control bg-ink/[0.04] px-3 py-2 text-[13.5px] outline-none ring-1 ring-transparent focus:ring-ink/20"></select>
+      </div>
+      <div class="border-l-2 border-warn pl-3">
+        <label class="mt-2 flex items-center gap-2 text-muted"><input id="f-ack" type="checkbox" checked class="accent-current"> <span data-en="Allow anonymous search and viewing on this site">是否允许匿名搜到或在网站内查看</span></label>
+      </div>
+      <p id="form-error" role="alert" class="text-[13px] text-danger empty:hidden"></p>
+    </form>
+    <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-3">
+      <button class="rounded-control px-3 py-1.5 text-[13.5px] text-muted hover:bg-sand hover:text-ink" data-close data-en="Cancel">取消</button>
+      <button id="submit" class="rounded-control bg-ink px-3 py-1.5 text-[13.5px] font-medium text-paper hover:opacity-90" data-en="Register and prepare">登记并准备</button>
+    </div>
+  </aside>
+</div>
+
+<div id="site-footer"></div>
+
+<script src="assets/management.js"></script>
+<script src="assets/branch-input.js"></script>
+<script src="assets/path-input.js"></script>
+<script src="assets/repos-page.js"></script>
+</body>
+</html>

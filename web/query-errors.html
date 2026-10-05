@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>查询错误日志 · Context Source Graph</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="assets/base.css">
+<script src="assets/app.js"></script><script src="assets/select.js"></script>
+<style>
+#error-drawer {position:fixed;inset:0 0 0 auto;margin:0;height:100dvh;max-height:100dvh;width:min(620px,100vw);max-width:100vw;border:0;border-radius:0;padding:28px;overflow:auto;background:oklch(var(--paper));color:oklch(var(--ink))}
+#error-drawer::backdrop {background:rgb(0 0 0 / .25)}
+</style>
+</head>
+<body data-page="ops" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+<main class="mx-auto max-w-page px-5 sm:px-8">
+<section class="pb-10 pt-10 sm:pt-12">
+<a href="/sourcegraph/operations" class="text-[14px] text-muted underline" data-en="Back to status">返回状态</a>
+<h1 class="type-page mt-6" data-en="Query error logs">查询错误日志</h1>
+<p class="type-deck lede mt-4" data-en="Latest 1,000 historical failures · not the current service health · administrators only">最近 1000 条历史失败 · 不代表服务当前状态 · 仅管理员可见</p>
+</section>
+<p id="access-state" role="status"></p>
+<section id="logs-content" class="hidden border-t rule py-6">
+<div class="flex items-center justify-between gap-3"><p id="summary" class="text-[14px] text-muted"></p><div class="flex shrink-0 items-center gap-3"><button id="clear-logs" class="rounded-control bg-sand px-3 py-2 disabled:opacity-40" data-en="Clear logs">清除日志</button><button id="refresh-logs" class="rounded-control bg-sand px-3 py-2" data-en="Refresh">刷新</button></div></div>
+<p id="logs-error" role="alert" class="mt-4 text-danger"></p>
+<div class="mt-6 overflow-x-auto"><table class="w-full text-left text-[14px]"><thead class="text-muted"><tr><th class="py-3 pr-5" data-en="Time">时间</th><th class="pr-5" data-en="Operation / repository">操作 / 仓库</th><th class="pr-5" data-en="Reason">原因</th><th data-en="Duration">耗时</th></tr></thead><tbody id="log-rows"></tbody></table></div>
+<div class="mt-6 flex items-center gap-4"><button id="previous-logs" class="rounded-control bg-sand px-3 py-2 disabled:opacity-40" data-en="Previous">上一页</button><button id="next-logs" class="rounded-control bg-sand px-3 py-2 disabled:opacity-40" data-en="Next">下一页</button></div>
+</section>
+</main>
+<dialog id="clear-logs-dialog" class="w-[min(92vw,480px)] rounded-control bg-paper p-6 text-ink backdrop:bg-black/30" aria-labelledby="clear-logs-title">
+<h2 id="clear-logs-title" class="text-lg font-medium" data-en="Clear all error logs?">清除全部错误日志？</h2>
+<p class="mt-3 text-[14px] text-muted" data-en="This permanently clears all recorded query errors. New errors will still be recorded.">将清除全部已记录的查询错误日志，无法恢复。后续新错误仍会正常记录。</p>
+<p id="clear-logs-error" role="alert" class="mt-3 text-[13px] text-danger"></p>
+<div class="mt-5 flex justify-end gap-4"><button id="clear-logs-cancel" data-en="Cancel">取消</button><button id="clear-logs-confirm" class="rounded-control bg-danger px-4 py-2 text-white disabled:opacity-40" data-en="Clear all">确认清除</button></div>
+</dialog>
+<dialog id="error-drawer" aria-labelledby="detail-title"><div class="flex items-center justify-between gap-4"><h2 id="detail-title" class="type-section" data-en="Error details">错误详情</h2><button id="close-detail" class="rounded-control bg-sand px-3 py-2" data-en="Close">关闭</button></div><div id="detail-body" class="mt-8"></div></dialog>
+<div id="site-footer"></div><script src="assets/query-errors-page.js"></script>
+</body></html>

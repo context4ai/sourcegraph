@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理用户 · Context Source Graph</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/base.css">
+  <script src="assets/app.js"></script>
+  <script src="assets/select.js"></script>
+</head>
+<body data-page="users" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+<main class="mx-auto max-w-page px-5 sm:px-8">
+  <section class="pb-10 pt-10 sm:pt-12">
+    <h1 class="type-page" data-en="Manage users">管理用户</h1>
+    <p class="type-deck lede mt-4" data-en="Review signed-in users and manage administrator access">查看登录用户，管理管理员权限</p>
+  </section>
+  <section id="access-state" role="status" class="border-t rule py-8 text-[14px]"></section>
+  <section id="users-content" class="hidden border-t rule pt-8">
+    <form id="user-filters" class="flex flex-wrap items-end gap-3">
+      <label class="block flex-1 min-w-[180px]"><span class="block text-[13px] text-muted" data-en="Name, email or user ID">姓名、邮箱或用户 ID</span><input id="user-q" type="search" maxlength="128" class="mt-2 w-full rounded-control bg-ink/[0.04] px-3 py-2 text-[14px] outline-none focus:ring-1 focus:ring-ink/20"></label>
+      <label class="block"><span class="block text-[13px] text-muted" data-en="Department (exact name)">部门（完整名称）</span><input id="user-department" maxlength="256" class="mt-2 w-52 max-w-full rounded-control bg-ink/[0.04] px-3 py-2 text-[14px] outline-none focus:ring-1 focus:ring-ink/20"></label>
+      <label class="block"><span class="block text-[13px] text-muted" data-en="Role">角色</span><select id="user-role" class="mt-2 rounded-control bg-sand px-3 py-2 text-[14px]"><option value="" data-en="All roles">全部角色</option><option value="user" data-en="User">普通用户</option><option value="admin" data-en="Administrator">管理员</option></select></label>
+      <button id="apply-filters" class="rounded-control bg-ink px-4 py-2 text-[14px] text-paper" data-en="Filter">筛选</button>
+      <button id="reset-filters" type="button" class="rounded-control px-3 py-2 text-[14px] text-muted hover:bg-sand" data-en="Reset">重置</button>
+    </form>
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3"><p id="users-summary" class="type-fig"></p><button id="refresh-users" class="rounded-control px-3 py-1.5 text-[13px] hover:bg-sand" data-en="Refresh this page">刷新当前页</button></div>
+    <p id="users-error" role="alert" class="mt-3 break-words text-[14px] text-danger"></p>
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full min-w-[900px] text-left text-[14px]">
+        <thead class="type-fig"><tr><th class="pb-3 pr-5 font-normal" data-en="user">用户</th><th class="pb-3 pr-5 font-normal" data-en="email">邮箱</th><th class="pb-3 pr-5 font-normal" data-en="department">部门</th><th class="pb-3 pr-5 font-normal" data-en="role">角色</th><th class="pb-3 pr-5 font-normal" data-en="last sign-in">最近登录</th><th class="pb-3 text-right font-normal" data-en="action">操作</th></tr></thead>
+        <tbody id="user-rows"></tbody>
+      </table>
+    </div>
+    <div class="mt-6 flex items-center gap-3"><button id="previous-users" class="rounded-control bg-ink/[0.05] px-3 py-1.5 text-[13px] disabled:opacity-40" data-en="Previous page">上一页</button><span id="users-page" class="type-fig"></span><button id="next-users" class="rounded-control bg-ink/[0.05] px-3 py-1.5 text-[13px] disabled:opacity-40" data-en="Next page">下一页</button></div>
+    <p class="mt-6 text-[13px] text-muted" data-en="Users appear after SSO sign-in. Department is shown only when provided by the identity service. Role changes apply to subsequent requests.">用户通过 SSO 登录后进入列表。部门仅展示身份服务提供的信息。角色变更对后续请求生效。</p>
+  </section>
+</main>
+<dialog id="role-dialog" class="lift w-[min(92vw,480px)] rounded-float bg-card p-6 text-ink backdrop:bg-ink/30" aria-labelledby="role-title">
+  <h2 id="role-title" class="font-display text-[22px] font-medium"></h2><p id="role-detail" class="mt-3 break-words text-[14px] text-muted"></p><p id="role-error" role="alert" class="mt-3 text-[14px] text-danger"></p>
+  <div class="mt-6 flex justify-end gap-2"><button id="role-cancel" class="rounded-control px-3 py-2 text-[14px] hover:bg-sand" data-en="Cancel">取消</button><button id="role-confirm" class="rounded-control bg-ink px-3 py-2 text-[14px] text-paper" data-en="Confirm change">确认修改</button></div>
+</dialog>
+<div id="site-footer"></div>
+<script src="assets/users-page.js"></script>
+</body>
+</html>

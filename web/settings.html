@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>系统设置 · Context Source Graph</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/base.css">
+  <script src="assets/app.js"></script>
+  <script src="assets/select.js"></script>
+</head>
+<body data-page="settings" class="min-h-screen bg-paper font-sans text-ink">
+<div id="site-header"></div>
+<main class="mx-auto max-w-page px-5 sm:px-8">
+  <section class="pb-10 pt-10 sm:pt-12"><h1 class="type-page" data-en="Settings">系统设置</h1><p class="type-deck lede mt-4" data-en="Applies to this whole instance; each part saves on its own">对整个实例生效，各部分分别保存</p></section>
+  <section id="settings-access" role="status" class="border-t rule py-10 text-[14px]"></section>
+  <div id="settings-content" class="hidden">
+    <div class="empty:hidden" id="settings-load-wrap"><p id="settings-load-error" role="alert" class="mb-3 text-[14px] text-danger empty:hidden"></p><button id="settings-retry" class="mb-6 hidden rounded-control bg-ink/[0.05] px-3 py-1.5 text-[13.5px] hover:bg-ink/[0.08]" data-en="Retry">重试</button></div>
+    <section class="grid gap-6 border-t rule py-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+      <div><h2 class="type-section" data-en="Code storage">代码存放位置</h2><p class="mt-3 text-[14px] text-muted" data-en="Where Git copies and indexes are kept on the server">Git 副本和索引在服务器上的存放目录</p></div>
+      <form id="storage-form" class="field space-y-5 p-5 text-[14px] sm:p-6">
+        <fieldset id="storage-fields" disabled class="space-y-3">
+          <label class="block"><span class="text-muted" data-en="Base directory">基础目录</span><span class="mt-1.5 flex items-center rounded-control bg-ink/[0.04] ring-1 ring-transparent focus-within:ring-ink/20"><input id="storage-base" required placeholder="/var/lib/context/sourcegraph" autocomplete="off" spellcheck="false" class="min-w-0 flex-1 bg-transparent py-2 pl-3 font-mono text-[13.5px] outline-none"><span class="shrink-0 pr-3 font-mono text-[13.5px] text-muted">/space</span></span></label>
+        </fieldset>
+        <p class="border-l-2 border-warn pl-3 text-[13px] text-muted" data-en="Changing it deletes existing Git copies and indexes; repositories sync again. Registrations and settings are kept.">修改会删除已有的 Git 副本和索引，仓库需要重新同步；仓库登记和设置会保留</p>
+        <div class="flex flex-wrap items-center gap-3 border-t rule pt-4">
+          <p id="storage-status" role="status" aria-live="polite" class="mr-auto min-w-0 break-all text-[13px] text-muted"></p>
+          <button id="storage-reload" type="button" class="rounded-control px-3 py-1.5 text-[13.5px] text-muted hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40" data-en="Reload">重新加载</button>
+          <button id="storage-save" type="submit" disabled class="rounded-control bg-ink px-3.5 py-1.5 text-[13.5px] font-medium text-paper hover:opacity-90 disabled:opacity-40" data-en="Save">保存</button>
+        </div>
+      </form>
+    </section>
+    <section class="grid gap-6 border-t rule py-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+      <div><h2 class="type-section" data-en="Repository defaults">新仓库默认值</h2><p class="mt-3 text-[14px] text-muted" data-en="Initial values when registering; existing repositories are unchanged">登记新仓库时的初始值，不影响已有仓库</p></div>
+      <form id="repository-defaults-form" class="field space-y-5 p-5 text-[14px] sm:p-6">
+        <fieldset id="repository-defaults-fields" disabled class="space-y-5">
+          <div>
+            <span class="text-muted" data-en="How each repository limits its indexed versions">每个仓库的最大索引数量的限制方式</span>
+            <select id="default-retention-mode" class="hidden" aria-hidden="true" tabindex="-1"><option value="days">days</option><option value="count">count</option></select>
+            <div class="mt-1.5 flex flex-wrap items-center gap-3">
+              <div id="default-retention-kind" class="flex w-56 items-center gap-1 rounded-control bg-ink/[0.04] p-1">
+                <button type="button" data-mode="days" class="flex-1 rounded-[6px] px-3 py-1.5" data-en="Days">天数</button>
+                <button type="button" data-mode="count" class="flex-1 rounded-[6px] px-3 py-1.5" data-en="Commits">提交数</button>
+              </div>
+              <label id="default-retention-days-wrap" class="flex w-40 items-center rounded-control bg-ink/[0.04] ring-1 ring-transparent focus-within:ring-ink/20"><input id="default-retention-days" type="number" min="1" max="365" step="1" required aria-label="天数" title="1–365" class="min-w-0 flex-1 bg-transparent py-2 pl-3 font-mono text-[13.5px] outline-none"><span class="shrink-0 pr-3 text-[13px] text-muted" data-en="days">天</span></label>
+              <label id="default-retention-count-wrap" class="hidden w-40 items-center rounded-control bg-ink/[0.04] ring-1 ring-transparent focus-within:ring-ink/20"><input id="default-retention-count" type="number" min="1" max="4096" step="1" required aria-label="提交数" title="1–4096" class="min-w-0 flex-1 bg-transparent py-2 pl-3 font-mono text-[13.5px] outline-none"><span class="shrink-0 pr-3 text-[13px] text-muted" data-en="commits">个提交</span></label>
+            </div>
+          </div>
+        </fieldset>
+        <div class="flex flex-wrap items-center gap-3 border-t rule pt-4">
+          <p id="repository-defaults-status" role="status" aria-live="polite" class="mr-auto min-w-0 break-all text-[13px] text-muted"></p>
+          <button id="reload-repository-defaults" type="button" disabled class="rounded-control px-3 py-1.5 text-[13.5px] text-muted hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40" data-en="Reload">重新加载</button>
+          <button id="save-repository-defaults" type="submit" disabled class="rounded-control bg-ink px-3.5 py-1.5 text-[13.5px] font-medium text-paper hover:opacity-90 disabled:opacity-40" data-en="Save">保存</button>
+        </div>
+      </form>
+    </section>
+    <section class="grid gap-6 border-t rule py-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+      <div><h2 class="type-section" data-en="Read access">读取权限</h2><p class="mt-3 text-[14px] text-muted" data-en="Whether people who are not signed in can query registered code">是否允许未登录的人查询已登记的代码</p></div>
+      <form id="access-form" class="field space-y-5 p-5 text-[14px] sm:p-6">
+        <fieldset id="access-fields" disabled>
+          <label class="flex cursor-pointer items-start gap-3"><input id="public-read" type="checkbox" class="mt-1 accent-current"><span><span class="block" data-en="Allow queries without sign-in">允许未登录查询</span><span class="mt-1 block text-[13px] text-muted" data-en="Website, HTTP and MCP allow anonymous reads without a token">包括网站、HTTP 和 MCP 允许匿名（无需 Token）读取</span></span></label>
+        <label class="block mt-4"><input id="allow-registration" type="checkbox"> 允许其他用户登录或注册 · Allow other users to sign in or register</label>
+<label class="block mt-4">关闭注册说明（中文）<textarea id="registration-notice-zh" maxlength="1024" class="block w-full rounded-control border p-2"></textarea></label>
+<label class="block mt-4">Registration notice (English)<textarea id="registration-notice-en" maxlength="1024" class="block w-full rounded-control border p-2"></textarea></label>
+</fieldset>
+        <div class="flex flex-wrap items-center gap-3 border-t rule pt-4">
+          <p id="access-status" role="status" aria-live="polite" class="mr-auto min-w-0 break-all text-[13px] text-muted"></p>
+          <button id="reload-access" type="button" disabled class="rounded-control px-3 py-1.5 text-[13.5px] text-muted hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40" data-en="Reload">重新加载</button>
+          <button id="save-access" type="submit" disabled class="rounded-control bg-ink px-3.5 py-1.5 text-[13.5px] font-medium text-paper hover:opacity-90 disabled:opacity-40" data-en="Save">保存</button>
+        </div>
+      </form>
+    </section>
+
+    <section data-code-credentials="global" class="grid gap-6 border-t rule py-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+      <div><h2 class="type-section" data-en="Code service access">接入设置</h2><p class="mt-3 text-[14px] text-muted" data-en="Global default GitHub and Git access tokens">全局默认的 GitHub 及 Git 访问令牌</p></div>
+      <div class="credential-forms min-w-0 space-y-5"></div>
+    </section>
+    <section class="grid gap-6 border-t rule py-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+      <h2 class="type-section" data-en="Clear logs">清除日志</h2>
+      <div class="field space-y-4 p-5 text-[14px] sm:p-6">
+        <p data-en="Clear completed preparation tasks across repositories. Queued and running tasks, repositories and indexes are kept.">清除所有仓库已完成的准备任务记录。保留排队中、运行中任务及仓库和索引。</p>
+        <button id="clear-jobs" class="rounded-control bg-ink/5 px-4 py-2" data-en="Clear completed tasks">清除已完成任务记录</button>
+        <p id="clear-jobs-status" role="status" class="text-muted"></p>
+      </div>
+    </section>
+
+  </div>
+  <dialog id="clear-jobs-dialog" class="w-[min(92vw,480px)] rounded-control bg-paper p-6 text-ink backdrop:bg-black/30">
+    <h2 class="type-section" data-en="Confirm clearing task history">确认清除任务记录</h2>
+    <p class="my-5" data-en="Selected completed records will be permanently removed. Queued and running tasks, indexes and audit records are kept.">所选已完成记录将永久清除。排队中、运行中任务、索引和审计记录保留。</p>
+    <label class="block my-3"><input id="clear-jobs-success" type="checkbox" checked> <span data-en="Clear successful tasks">清除成功</span></label>
+    <label class="block my-3"><input id="clear-jobs-failed" type="checkbox" checked> <span data-en="Clear failed tasks">清除失败</span></label>
+    <p id="clear-jobs-error" role="alert" class="text-danger"></p>
+    <div class="mt-5 flex justify-end gap-4"><button id="clear-jobs-cancel" data-en="Cancel">取消</button><button id="clear-jobs-confirm" class="rounded-control bg-danger px-4 py-2 text-white disabled:opacity-40" data-en="Confirm clearing">确认清除</button></div>
+  </dialog>
+
+</main>
+<div id="site-footer"></div>
+<script src="assets/settings-page.js"></script>
+<script src="assets/storage-page.js"></script>
+<script src="assets/clear-jobs-page.js"></script>
+<script src="assets/code-credentials.js"></script>
+</body>
+</html>

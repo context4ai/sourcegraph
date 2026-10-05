@@ -1,0 +1,12 @@
+{
+  "sso": {
+    "issuer": "https://accounts.google.com",
+    "endpoints": "https://accounts.google.com",
+    "client_id": "",
+    "registration_url": "https://console.cloud.google.com/apis/credentials"
+  },
+  "code_host": "https://github.com",
+  "example_repo": "context4ai/context",
+  "public_url": "https://context4ai.org/sourcegraph",
+  "source_repository": "https://github.com/context4ai/sourcegraph"
+}

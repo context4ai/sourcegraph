@@ -1,0 +1,6 @@
+Context Source Graph includes and depends on independently licensed open-source software.
+Dependencies and exact versions are recorded in go.mod, go.sum, package.json and bun.lock.
+Zoekt is a separate upstream project at https://github.com/sourcegraph/zoekt (Apache-2.0).
+The project name does not imply affiliation with the upstream Sourcegraph platform.
+Distribution images include Git, CA certificates, SQLite and Tini under their respective licenses.
+Retain dependency license notices when redistributing binaries and images.
