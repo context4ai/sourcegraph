@@ -18,7 +18,7 @@ Open <http://localhost:8080/sourcegraph/>. Public GitHub repositories do not req
 
 ## Development
 
-Go 1.26+, Bun 1.3.9, and Git are required. The checked-in Wasm test fixture is reproducible with Rust's `wasm32-unknown-unknown` target.
+Go 1.26+, Bun 1.3.9, Git, and ripgrep (for tests) are required. The checked-in Wasm test fixture is reproducible with Rust's `wasm32-unknown-unknown` target.
 
 ```sh
 bun install --frozen-lockfile

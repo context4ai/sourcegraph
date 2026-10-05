@@ -23,7 +23,7 @@ func (s *Service) withGitCredential(ctx context.Context, r control.Repository, o
 		err = operation(candidate.Token)
 		var ce *contract.Error
 		authFailure := errors.As(err, &ce) && ce.Code == "GIT_AUTH_FAILED"
-		if err == nil || authFailure {
+		if candidate.Token != "" && (err == nil || authFailure) {
 			budget, stop := context.WithTimeout(ctx, 2*time.Second)
 			s.Credentials.Report(budget, candidate, authFailure)
 			stop()

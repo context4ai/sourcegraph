@@ -147,7 +147,8 @@ func (s *Store) command(ctx context.Context, p string, args ...string) *exec.Cmd
 		}
 		return e
 	}
-	c.WaitDelay = time.Second
+	// Bound inherited-pipe cleanup within the HTTP response margin after cancellation.
+	c.WaitDelay = 50 * time.Millisecond
 	return c
 }
 

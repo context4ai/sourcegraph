@@ -60,6 +60,10 @@ func pageFile(p string) string {
 
 func withAssets(root fs.FS, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/sourcegraph/", http.StatusTemporaryRedirect)
+			return
+		}
 		if r.URL.Path == "/sourcegraph/api-tokens" || r.URL.Path == "/sourcegraph/api-tokens.html" {
 			target := "/sourcegraph/user-settings"
 			if r.URL.RawQuery != "" {

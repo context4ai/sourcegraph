@@ -152,17 +152,17 @@ func safeReturn(raw string) string {
 	return u.String()
 }
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if len(h.Providers) > 0 {
-		if r.URL.Path == Prefix+"providers" {
-			names := []string{}
-			for _, name := range []string{"google", "github"} {
-				if h.Providers[name] != nil {
-					names = append(names, name)
-				}
+	if r.URL.Path == Prefix+"providers" {
+		names := []string{}
+		for _, name := range []string{"google", "github"} {
+			if h.Providers[name] != nil {
+				names = append(names, name)
 			}
-			respond(w, 200, map[string]any{"providers": names})
-			return
 		}
+		respond(w, 200, map[string]any{"providers": names})
+		return
+	}
+	if len(h.Providers) > 0 {
 		rest := strings.TrimPrefix(r.URL.Path, Prefix)
 		parts := strings.Split(rest, "/")
 		if len(parts) == 2 && (parts[1] == "login" || parts[1] == "callback") {

@@ -59,7 +59,7 @@ func (s *Store) HydratePaths(ctx context.Context, repo, commit string, paths []s
 	if len(paths) == 0 {
 		return contract.Fail("INVALID_PATHS", "A monorepo group must contain at least one path.", 400)
 	}
-	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") || o.Token == "" {
+	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") {
 		return contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Git credential is not configured.", 503)
 	}
 	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
@@ -79,7 +79,7 @@ func (s *Store) HydrateEntries(ctx context.Context, repo, commit string, entries
 	if s.group == "" {
 		return errors.New("object hydration requires a group store")
 	}
-	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") || o.Token == "" {
+	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") {
 		return contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Git credential is not configured.", 503)
 	}
 	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {

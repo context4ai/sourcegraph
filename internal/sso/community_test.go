@@ -114,3 +114,12 @@ func TestClosedSessionAndSafeReturn(t *testing.T) {
 		t.Fatalf("denial: %s", w.Body.String())
 	}
 }
+
+func TestUnconfiguredProviderDiscovery(t *testing.T) {
+	h := &Handler{Providers: map[string]*Handler{}}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", Prefix+"providers", nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"providers":[]`) {
+		t.Fatalf("unconfigured discovery: %d %s", w.Code, w.Body.String())
+	}
+}
