@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="5;url={{.Target}}">
+<title>当前未开放注册 · Registration closed</title>
+<link rel="stylesheet" href="/sourcegraph/assets/base.css">
+<link rel="stylesheet" href="/sourcegraph/assets/auth-status.css">
+<script src="/sourcegraph/assets/theme.js"></script>
+</head>
+<body class="auth-status">
+<header><a href="/sourcegraph/">Context Source Graph</a><span>ACCOUNT ACCESS</span></header>
+<main aria-labelledby="access-title">
+<div class="auth-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></div>
+<p class="eyebrow">Context Source Graph / Access</p>
+<h1 id="access-title">当前未开放注册</h1>
+<p class="subtitle" lang="en">Registration is currently closed</p>
+<div class="notice"><p lang="zh-CN">{{.ZH}}</p><p lang="en">{{.EN}}</p></div>
+<a class="primary" href="{{.Target}}"><span>返回原页面 · Return now</span><span aria-hidden="true">→</span></a>
+<a class="secondary" href="https://github.com/context4ai/sourcegraph">在 GitHub 了解项目 · View on GitHub ↗</a>
+<p class="return-note">5 秒后自动返回登录前页面<br><span lang="en">Returning to your previous page in 5 seconds.</span></p>
+</main>
+<footer>Built by Context4AI</footer>
+</body>
+</html>

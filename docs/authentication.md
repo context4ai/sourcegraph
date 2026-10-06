@@ -36,4 +36,6 @@ Use the Fly dashboard Secrets UI, or `fly secrets import --app context4ai-source
 
 ## Sign-in screen
 
-The sign-in screen follows the site language and theme. With no configured provider it offers anonymous demo browsing; configured providers appear as sign-in buttons. A failed provider lookup offers retry without blocking the public browsing link. Login preserves the requested local Source Graph page.
+The sign-in screen follows the site language and theme. With no configured provider it explains the missing Google/GitHub configuration and links to this setup guide; configured providers appear as sign-in buttons. A failed provider lookup offers retry without blocking the public browsing link. Login preserves the requested local Source Graph page.
+
+Registration denial is a separate, server-rendered HTTP 403 page with the configured bilingual notice, a project link, and a five-second return to the validated previous page. This is distinct from missing OAuth configuration and provider lookup failures.

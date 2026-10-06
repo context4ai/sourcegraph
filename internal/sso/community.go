@@ -2,6 +2,7 @@ package sso
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"github.com/context4ai/sourcegraph/internal/sitesettings"
@@ -104,7 +105,10 @@ func (h *Handler) githubIdentity(w http.ResponseWriter, r *http.Request, f Flow,
 	h.finishLogin(w, r, f, User{ID: digest(h.issuer + "\x00" + sub), Issuer: h.issuer, Subject: sub, Name: v.Name, Email: v.Email, Picture: v.Picture, Enabled: true, Created: now, LastLogin: now})
 }
 
-var closedTemplate = template.Must(template.New("closed").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="5;url={{.Target}}"><title>Registration is currently closed</title><body><main><h1>当前未开放注册 · Registration is currently closed</h1><p>{{.ZH}}</p><p>{{.EN}}</p><p><a href="https://github.com/context4ai/sourcegraph">GitHub</a></p><p>5 秒后返回 · Returning in 5 seconds</p><a href="{{.Target}}">立即返回 · Return now</a></main></body></html>`))
+//go:embed registration-closed.html
+var closedPage string
+
+var closedTemplate = template.Must(template.New("closed").Parse(closedPage))
 
 func (h *Handler) registrationClosed(w http.ResponseWriter, r *http.Request, target string) {
 	h.cookie(w, sessionCookie, "", time.Time{})
@@ -115,7 +119,7 @@ func (h *Handler) registrationClosed(w http.ResponseWriter, r *http.Request, tar
 	v := h.Settings.Snapshot().Access.Values
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'")
 	w.WriteHeader(http.StatusForbidden)
 	_ = closedTemplate.Execute(w, struct{ Target, ZH, EN string }{target, v.RegistrationNoticeZH, v.RegistrationNoticeEN})
 }
