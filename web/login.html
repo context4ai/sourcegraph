@@ -1,41 +1,29 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SSO 登录 · Context Source Graph</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="assets/base.css">
-  <script src="assets/app.js"></script>
-  <script src="assets/select.js"></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · Context Source Graph</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="assets/base.css">
+<script src="assets/app.js"></script>
 </head>
-<body class="grid min-h-screen place-items-center bg-paper font-sans text-ink">
-  <header class="absolute inset-x-0 top-0 z-30 bg-paper">
-    <div class="mx-auto flex h-14 max-w-page items-center justify-end px-5 sm:px-8">
-      <button id="login-lang" type="button" class="h-8 rounded-control px-2 font-mono text-[12px] text-muted hover:bg-sand hover:text-ink" title="Switch to English" aria-label="Switch to English">EN</button>
-    </div>
-  </header>
-  <main class="w-[min(92vw,500px)] py-20" aria-live="polite">
-    <div class="flex items-center gap-2 text-[15px] font-medium tracking-tight text-ink"><span id="mark" class="inline-flex"></span><span class="whitespace-nowrap">Context Source Graph</span></div>
-    <h1 id="login-title" class="mt-6 font-display text-[22px] font-medium" data-en="Signing you in with SSO">正在通过SSO 登录</h1>
-    <p id="login-detail" class="mt-2 text-[14px] leading-relaxed text-muted" data-en="Signing in, please wait...">登录中，请稍后...</p>
-    <div id="login-progress" class="relative mt-6 h-px bg-ink/10"><div class="progress on"></div></div>
-    <form id="sso-setup" class="mt-6 hidden space-y-5 text-[14px]">
-      <fieldset id="sso-fields" class="space-y-5">
-        <label class="block"><span>Endpoints</span><input id="sso-host" type="url" required class="mt-2 block w-full rounded-control bg-sand px-3 py-2 font-mono"></label>
-        <label class="block"><span>Client ID</span><input id="sso-client-id" required maxlength="256" autocomplete="off" class="mt-2 block w-full rounded-control bg-sand px-3 py-2 font-mono"></label>
-        <label class="block"><span>Client Secret</span><input id="sso-secret" type="password" required maxlength="4096" autocomplete="new-password" class="mt-2 block w-full rounded-control bg-sand px-3 py-2 font-mono"></label>
-        <label class="block"><span data-en="Callback URL (automatic)">回调地址（自动生成）</span><input id="sso-callback" type="url" readonly class="mt-2 block w-full rounded-control bg-ink/[0.04] px-3 py-2 font-mono text-muted"></label>
-      </fieldset>
-      <p id="sso-setup-status" role="status" class="text-[13px] leading-relaxed text-muted"></p>
-      <button id="sso-save" type="submit" class="w-full rounded-control bg-ink px-4 py-2.5 text-paper disabled:opacity-40" data-en="Save and sign in">保存并尝试登录</button>
-    </form>
-    <div id="login-actions" class="mt-6 hidden flex flex-wrap gap-5 text-[14px]">
-      <a id="login-link" class="hidden underline underline-offset-4" data-en="Continue to SSO">前往SSO</a>
-      <a id="back" class="text-muted underline underline-offset-4" data-en="Return to site">返回网站</a>
-      <a id="sso-register" target="_blank" rel="noopener noreferrer" class="ml-auto hidden text-muted underline underline-offset-4" data-en="Set up SSO app">开通 SSO</a>
-    </div>
-  </main>
-  <script src="assets/login-page.js"></script>
+<body class="flex min-h-screen flex-col bg-paper font-sans text-ink">
+<header class="flex h-20 shrink-0 items-center justify-between px-6 sm:px-10">
+<a href="/sourcegraph/" class="flex items-center gap-2.5 text-[14px] font-medium"><span id="mark" class="inline-flex" aria-hidden="true"></span>Context Source Graph</a>
+<button id="login-lang" type="button" class="rounded-control px-3 py-2 font-mono text-[12px] text-muted hover:bg-sand" aria-label="Switch to English">EN</button>
+</header>
+<main class="mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center px-6 py-16 sm:py-24" aria-labelledby="login-title">
+<div class="mb-8 flex h-12 w-12 items-center justify-center rounded-xl border rule bg-sand" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></div>
+<p class="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">Context Source Graph / Access</p>
+<h1 id="login-title" class="font-display text-[32px] font-medium leading-tight tracking-tight">欢迎回来</h1>
+<p id="login-detail" class="mt-4 text-[15px] leading-7 text-muted" aria-live="polite"></p>
+<div id="login-progress" class="relative mt-8 h-px overflow-hidden bg-ink/10"><div class="progress on"></div></div>
+<div id="login-providers" class="mt-8 space-y-3"></div>
+<button id="login-retry" type="button" hidden class="mt-6 rounded-control border rule px-4 py-3 text-[14px] hover:bg-sand" data-en="Try again">重新加载</button>
+<a href="/sourcegraph/" class="mt-6 flex items-center justify-between rounded-control bg-ink px-4 py-3.5 text-[14px] font-medium text-paper hover:opacity-80"><span data-en="Explore the demo">浏览演示</span><span aria-hidden="true">→</span></a>
+<div class="mt-8 flex items-center gap-2 border-t rule pt-5 text-[12px] text-muted"><span class="h-1.5 w-1.5 shrink-0 rounded-full bg-live" aria-hidden="true"></span><span data-en="Public code. Open to explore. No account needed.">公开代码，自由探索，无需账号。</span></div>
+<noscript><p>登录需要 JavaScript。 / Enable JavaScript to sign in.</p></noscript>
+</main>
+<footer class="px-6 pb-8 text-center font-mono text-[11px] text-muted">Built by Context4AI</footer>
+<script src="assets/login-page.js"></script>
 </body>
 </html>

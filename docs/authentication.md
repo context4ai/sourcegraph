@@ -33,3 +33,7 @@ Use the same origin in `SOURCEGRAPH_ORIGIN`. When the portal becomes the public 
 [GitHub's OAuth app guide](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)
 
 Use the Fly dashboard Secrets UI, or `fly secrets import --app context4ai-sourcegraph` with a private input stream. Do not paste secrets into chat, commit them, or leave them in shell history. If both providers are configured, the first one used owns the administrator account; the other provider creates a distinct identity and is subject to registration policy.
+
+## Sign-in screen
+
+The sign-in screen follows the site language and theme. With no configured provider it offers anonymous demo browsing; configured providers appear as sign-in buttons. A failed provider lookup offers retry without blocking the public browsing link. Login preserves the requested local Source Graph page.
