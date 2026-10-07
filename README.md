@@ -85,7 +85,7 @@ All environment variables are listed in [DEVELOPMENT.md](DEVELOPMENT.md#configur
 
 Each instance owns its Git mirrors and Zoekt indexes on local disk. Search speed comes from that locality, so plan capacity around disk, not CPU.
 
-**Future option: sharded instances with repository-sticky routing.** This is not supported by the current runtime: background workers scan all repositories in the database. Shared-database sharding first needs repository ownership enforcement in workers, index lifecycle operations and request routing. Routing alone is insufficient.
+**Recommended at scale: sharded instances with repository-sticky routing.** Run several instances that share one PostgreSQL or MongoDB database, each serving a disjoint set of repositories from its own data volume. Configure the access layer to route every request by its repository key (`owner/repository`) to the owning instance — for example with consistent hashing or an explicit repository → instance table. Every repository then has one warm index, capacity grows by adding instances, and losing one instance affects only its shard. See [deployment](docs/deployment.md#topologies) for the required settings.
 
 **Simple: one instance with a large disk.** For a single team or a moderate number of repositories, one instance on a large, fast persistent volume is the easiest option. Size the volume for bare Git repositories plus indexes, and keep headroom above `SOURCEGRAPH_MIN_FREE_BYTES`.
 

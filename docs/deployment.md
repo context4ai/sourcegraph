@@ -2,16 +2,23 @@
 
 ## Topologies
 
-Each instance owns its Git mirrors, Zoekt indexes and data directory. The database holds shared application state. The supported topology and a future expansion option are:
+Each instance owns its Git mirrors, Zoekt indexes and data directory. The database holds shared application state. Two topologies are supported:
 
 - **Single instance with a large disk.** One instance serves every repository from one persistent volume. Size the volume for bare Git repositories plus indexes and keep headroom above `SOURCEGRAPH_MIN_FREE_BYTES`.
-- **Future option: sharded instances with repository-sticky routing.** Not currently supported. Background workers scan all repositories in the shared database; access-layer routing cannot constrain them. Repository ownership must first be enforced across workers, indexing, cleanup and request routing. A future implementation would use separate volumes, a shared PostgreSQL or MongoDB database and the same `SOURCEGRAPH_CREDENTIAL_KEY` on all instances. SQLite cannot be shared between instances.
+- **Sharded instances with repository-sticky routing.** Several instances share one PostgreSQL or MongoDB database, each serving a disjoint set of repositories from its own data volume. The access layer routes each request by its repository key (`owner/repository`) to the owning instance, using consistent hashing or an explicit repository → instance table. Requests not tied to one repository, such as listing repositories, may go to any instance.
+
+Implementation notes for sharding:
+
+- Use PostgreSQL or MongoDB; SQLite cannot be shared between instances.
+- Set the same `SOURCEGRAPH_CREDENTIAL_KEY` on every instance. Otherwise each generates its own key on its volume and cannot decrypt credentials stored by the others.
+- Keep the repository → instance mapping stable. Moving a repository to another instance means it is fetched and indexed again there.
+- Route by the repository named in the request: the `repo` query parameter for HTTP, and the `repo` argument of MCP tool calls.
 
 Never let two instances serve the same repository or share a data directory: index ownership is per process. Scale by sharding repositories, not by adding replicas. Place instances in the same region as their callers to keep end-to-end latency low.
 
 ## Fly.io
 
-`fly.toml` deploys one Source Graph Machine in `sin`, with 2 GB memory, auto-stop disabled, and a volume named `sourcegraph_data`. The starter volume should be at least 20 GB. Index memory and disk needs depend on repository size; observe real indexing before changing capacity. Do not scale this App to multiple Machines: Machines of one App would share repositories. Do not deploy shared-database shards until ownership enforcement is implemented.
+`fly.toml` deploys one Source Graph Machine in `sin`, with 2 GB memory, auto-stop disabled, and a volume named `sourcegraph_data`. The starter volume should be at least 20 GB. Index memory and disk needs depend on repository size; observe real indexing before changing capacity. Do not scale this App to multiple Machines: Machines of one App would share repositories. For sharding, deploy one App per shard behind a routing access layer.
 
 The portal is a separate App. For a unified domain it reverse-proxies the entire `/sourcegraph/` prefix, preserving query strings, cookies and authorization. Keep the configured external origin fixed; never trust arbitrary forwarded hosts. The portal must not cache auth/API/MCP responses. Static assets may be cached independently.
 
@@ -27,7 +34,7 @@ GitHub Actions runs verification on PRs and main. A successful main build deploy
 
 SQLite is the default. WAL and full synchronous commits are enabled; application writes use short transactions. The SQL schema stores BSON-encoded persistence models, including fields intentionally hidden from public JSON, with namespace/ID primary keys. PostgreSQL uses the same persistence contract with serializable transactions. MongoDB uses its native document collections; authentication admission requires transactions, so use a replica set or Atlas.
 
-Changing `SOURCEGRAPH_DATABASE` does not migrate data. Start with an empty destination or perform a separately reviewed export/import. External databases do not replace the persistent Git/index/key volume. A shared PostgreSQL or MongoDB database alone does not enable horizontal scaling; repository ownership enforcement is also required.
+Changing `SOURCEGRAPH_DATABASE` does not migrate data. Start with an empty destination or perform a separately reviewed export/import. External databases do not replace the persistent Git/index/key volume. Sharded instances share one PostgreSQL or MongoDB database; each instance still needs its own volume.
 
 ## Backups and recovery
 
