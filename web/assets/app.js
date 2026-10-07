@@ -14,8 +14,8 @@
     // sun / moon: Lucide "sun" and "moon" (ISC License, lucide.dev).
     sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
     moon: svg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
-    // code: Lucide "code" (ISC License, lucide.dev).
-    source: svg('<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>'),
+    // GitHub mark (Simple Icons, CC0).
+    source: '<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M12 .297C5.37.297 0 5.67 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.043-1.61-4.043-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.084-.729.084-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.605-2.665-.3-5.467-1.334-5.467-5.931 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23a11.52 11.52 0 0 1 3.003-.404c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.652.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.628-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>',
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 'h-3.5 w-3.5'),
     copy: svg('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>', 'h-3.5 w-3.5'),
     arrow: svg('<path d="M7 17 17 7M8 7h9v9"/>', 'h-3.5 w-3.5'),
@@ -105,13 +105,13 @@
     if (minimal) host.innerHTML =
       '<header class="relative z-30">' +
       '<div class="flex h-14 items-center justify-between px-5 sm:px-8">' +
-        '<a href="/" class="flex items-center gap-2 text-[15px] font-medium tracking-tight">' + MARK + '<span>Context for AI</span><span class="rounded-[4px] px-1.5 py-px font-mono text-[10px] font-medium leading-4 tracking-[0.08em] text-muted ring-1 ring-inset ring-ink/15">LABS</span></a>' +
+        '<a href="https://context4ai.org/" class="flex items-center gap-2 text-[15px] font-medium tracking-tight">' + MARK + '<span>Context for AI</span><span class="rounded-[4px] px-1.5 py-px font-mono text-[10px] font-medium leading-4 tracking-[0.08em] text-muted ring-1 ring-inset ring-ink/15">LABS</span></a>' +
         '<div class="flex items-center gap-1">' + tools + '</div>' +
       '</div></header>';
     else host.innerHTML =
       '<header class="sticky top-0 z-30 bg-paper">' +
       '<div class="mx-auto flex h-14 max-w-page items-center justify-between px-5 sm:px-8 md:grid md:grid-cols-[1fr_auto_1fr]">' +
-        '<a href="/sourcegraph/" class="flex items-center gap-2 justify-self-start text-[15px] font-medium tracking-tight">' + MARK +
+        '<a href="https://context4ai.org/" class="flex items-center gap-2 justify-self-start text-[15px] font-medium tracking-tight">' + MARK +
           '<span class="whitespace-nowrap">Context Source Graph</span></a>' +
         '<nav class="hidden items-center md:flex">' + nav + '</nav>' +
         '<div class="flex items-center gap-1 justify-self-end">' +
@@ -256,7 +256,7 @@
     var host = document.getElementById('site-footer');
     if (!host) return;
     host.innerHTML = '<footer class="mt-24 border-t rule"><div class="mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-5 py-8 text-[13px] text-muted sm:px-8">' +
-      '<span class="flex items-center gap-2 text-ink">' + MARK + 'Context Source Graph</span>' +
+      '<a href="https://context4ai.org/" class="flex items-center gap-2 text-ink hover:opacity-80">' + MARK + 'Context4AI</a>' +
       '<a class="hover:text-ink" href="/sourcegraph/connect#mcp">MCP</a><a class="hover:text-ink" href="/sourcegraph/connect#bash">CLI</a><a class="hover:text-ink" href="/sourcegraph/connect#http">HTTP</a>' +
       '<span class="w-full sm:ml-auto sm:w-auto">Built by Context4AI</span>' +
       '</div></footer>';

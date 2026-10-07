@@ -9,7 +9,7 @@ function canPrepare(){return API.policy?.public_prepare===true||A.canManage();}
 const field = new window.Field($('#field')); // Decorative state only; it never manufactures progress counts.
 const input = $('#q');
 // Samples read like the rg calls an Agent would make; each sets the same options as the toggles.
-const sampleSearches = [{label:"rg 'WithTimeout\\('",pattern:'WithTimeout\\('},{label:"rg -F 'ctx.Done()'",pattern:'ctx.Done()',fixedStrings:true},{label:"rg -g '*.go' 'errors\\.(Is|As)\\('",pattern:'errors\\.(Is|As)\\(',glob:['*.go']}];
+const sampleSearches = [{label:"rg 'sourcegraph|context'",pattern:'sourcegraph|context'},{label:"rg -F 'context4ai/'",pattern:'context4ai/',fixedStrings:true},{label:"rg -g '*.md' 'MCP'",pattern:'MCP',glob:['*.md']}];
 const options = {caseSensitive:true, regex:true};
 let orderedGlobs=[];
 function currentSearch(){orderedGlobs=reconcileGlobs(orderedGlobs,splitGlobs($('#glob-include').value),splitGlobs($('#glob-exclude').value));return {pattern:input.value, fixedStrings:!options.regex, ignoreCase:!options.caseSensitive, glob:orderedGlobs.slice()};}
