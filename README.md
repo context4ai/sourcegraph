@@ -1,5 +1,3 @@
-<div align="center">
-
 # Context Source Graph
 
 **Millisecond code search and reading at pinned Git revisions — for people, scripts and AI agents.**
@@ -10,8 +8,6 @@
 ![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)
 ![Search](https://img.shields.io/badge/search-Zoekt-F05032)
-
-</div>
 
 ---
 
