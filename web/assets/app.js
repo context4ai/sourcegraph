@@ -108,13 +108,13 @@
     if (minimal) host.innerHTML =
       '<header class="relative z-30">' +
       '<div class="flex h-[60px] items-center justify-between px-4 sm:px-8">' +
-        '<a href="https://context4ai.org/" class="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">' + BRAND_MARK + '<span>Context for AI</span><span class="rounded-[4px] px-1.5 py-px font-mono text-[10px] font-medium leading-4 tracking-[0.08em] text-muted ring-1 ring-inset ring-ink/15">LABS</span></a>' +
+        '<a href="/" class="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">' + BRAND_MARK + '<span>Context for AI</span><span class="rounded-[4px] px-1.5 py-px font-mono text-[10px] font-medium leading-4 tracking-[0.08em] text-muted ring-1 ring-inset ring-ink/15">LABS</span></a>' +
         '<div class="flex items-center gap-1">' + tools + '</div>' +
       '</div></header>';
     else host.innerHTML =
       '<header class="sticky top-0 z-30 bg-paper">' +
       '<div class="mx-auto flex h-[60px] max-w-page items-center justify-between px-4 sm:px-8 md:grid md:grid-cols-[1fr_auto_1fr]">' +
-        '<a href="https://context4ai.org/" class="flex items-center gap-2.5 justify-self-start text-[15px] font-semibold tracking-[-0.01em]">' + BRAND_MARK +
+        '<a href="/" class="flex items-center gap-2.5 justify-self-start text-[15px] font-semibold tracking-[-0.01em]">' + BRAND_MARK +
           '<span class="whitespace-nowrap">Context for AI</span></a>' +
         '<nav class="hidden items-center md:flex">' + nav + '</nav>' +
         '<div class="flex items-center gap-1 justify-self-end">' +
@@ -259,7 +259,7 @@
     var host = document.getElementById('site-footer');
     if (!host) return;
     host.innerHTML = '<footer class="mt-24 border-t rule"><div class="mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-4 py-8 text-[13px] text-muted sm:px-8">' +
-      '<a href="https://context4ai.org/" class="flex items-center gap-2 text-ink hover:opacity-80">' + MARK + 'Context4AI</a>' +
+      '<a href="/" class="flex items-center gap-2 text-ink hover:opacity-80">' + MARK + 'Context4AI</a>' +
       '<a class="hover:text-ink" href="/sourcegraph/connect#mcp">MCP</a><a class="hover:text-ink" href="/sourcegraph/connect#bash">CLI</a><a class="hover:text-ink" href="/sourcegraph/connect#http">HTTP</a>' +
       '<span class="w-full sm:ml-auto sm:w-auto">Built by Context4AI</span>' +
       '</div></footer>';
