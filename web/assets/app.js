@@ -7,15 +7,16 @@
     { key: 'ops', href: '/sourcegraph/operations', zh: '状态', en: 'Status' },
   ];
 
-  var svg = function (d, cls) { return '<svg viewBox="0 0 24 24" class="' + (cls || 'h-4 w-4') + '" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>'; };
+  var svg = function (d, cls, width) { return '<svg viewBox="0 0 24 24" class="' + (cls || 'h-4 w-4') + '" fill="none" stroke="currentColor" stroke-width="' + (width || 1.7) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
   // Where this site's own source lives; configured by deployment defaults so forks can point elsewhere.
   var SOURCE_REPO = /^https:\/\//.test((window.DEPLOYMENT && window.DEPLOYMENT.source_repository) || '') ? (window.DEPLOYMENT && window.DEPLOYMENT.source_repository) || '' : '';
   var ICON = {
-    // sun / moon: Lucide "sun" and "moon" (ISC License, lucide.dev).
-    sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
-    moon: svg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
-    // GitHub mark (Simple Icons, CC0).
-    source: '<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M12 .297C5.37.297 0 5.67 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.043-1.61-4.043-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.084-.729.084-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.605-2.665-.3-5.467-1.334-5.467-5.931 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23a11.52 11.52 0 0 1 3.003-.404c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.652.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.628-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>',
+    // Header tools share the context4ai.org line icons: Lucide "sun", "moon", "github" and "code" (ISC License, lucide.dev).
+    sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>', 'h-4 w-4', 1.5),
+    moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>', 'h-4 w-4', 1.5),
+    source: /^https:\/\/github\.com\//.test(SOURCE_REPO)
+      ? svg('<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>', 'h-4 w-4', 1.5)
+      : svg('<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>', 'h-4 w-4', 1.5),
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 'h-3.5 w-3.5'),
     copy: svg('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>', 'h-3.5 w-3.5'),
     arrow: svg('<path d="M7 17 17 7M8 7h9v9"/>', 'h-3.5 w-3.5'),
@@ -99,8 +100,8 @@
     var minimal = document.body.dataset.header === 'minimal';
     var tools =
           '<button id="theme" class="grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-sand hover:text-ink" aria-label="' + t('切换深浅色', 'Toggle theme') + '" title="' + t('切换深浅色', 'Toggle theme') + '">' + (isDark() ? ICON.sun : ICON.moon) + '</button>' +
-          '<button id="lang" class="h-8 rounded-control px-2 font-mono text-[12px] text-muted hover:bg-sand hover:text-ink" title="' + t('Switch to English', '切换到中文') + '">' + (lang() === 'zh' ? 'EN' : '中') + '</button>' +
-          (SOURCE_REPO && !minimal ? '<a id="source-repo" href="' + esc(SOURCE_REPO) + '" target="_blank" rel="noopener" class="hidden h-8 w-8 place-items-center rounded-control text-muted hover:bg-sand hover:text-ink sm:grid" aria-label="' + t('源代码仓库', 'Source repository') + '" title="' + t('源代码仓库', 'Source repository') + '">' + ICON.source + '</a>' : '');
+          (SOURCE_REPO && !minimal ? '<a id="source-repo" href="' + esc(SOURCE_REPO) + '" target="_blank" rel="noopener" class="hidden h-8 w-8 place-items-center rounded-control text-muted hover:bg-sand hover:text-ink sm:grid" aria-label="' + t('源代码仓库', 'Source repository') + '" title="' + t('源代码仓库', 'Source repository') + '">' + ICON.source + '</a>' : '') +
+          '<button id="lang" class="h-8 min-w-8 rounded-control px-2.5 text-[13px] text-muted hover:bg-sand hover:text-ink" title="' + t('Switch to English', '切换到中文') + '">' + (lang() === 'zh' ? 'EN' : '中文') + '</button>';
     // The portal page carries only the brand and the shared theme and language switches.
     if (minimal) host.innerHTML =
       '<header class="relative z-30">' +
