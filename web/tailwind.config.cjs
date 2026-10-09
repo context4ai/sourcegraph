@@ -31,7 +31,7 @@ module.exports = {
         surface: '10px',
         float: '12px',
       },
-      maxWidth: { page: '1280px' },
+      maxWidth: { page: '1440px' },
     },
   },
 };
