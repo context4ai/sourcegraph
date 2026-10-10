@@ -39,6 +39,10 @@ func TestCanonicalSearchPreservesPathsAndAliases(t *testing.T) {
 		t.Fatalf("%+v", f)
 	}
 	cov := linkCoverage(scopes)
+	m.UnsupportedPathsSkipped = true
+	if linkCoverage(scopes)["UnsupportedPathsSkipped"] != true {
+		t.Fatal("unsupported path coverage hidden")
+	}
 	if cov["Symlinks"] != "followed" || cov["SymlinkExpansionComplete"] != true {
 		t.Fatal(cov)
 	}

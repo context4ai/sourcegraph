@@ -117,10 +117,14 @@ func canonicalSearchFiles(native map[string]any, targets []zoektclient.Target, s
 }
 func linkCoverage(scopes []selectedScope) map[string]any {
 	followed := 0
+	unsupportedPaths := false
 	complete := true
 	skipped := map[string]int{}
 	for _, scope := range scopes {
 		m := scope.version.Links
+		if m != nil && m.UnsupportedPathsSkipped {
+			unsupportedPaths = true
+		}
 		if m != nil && m.Followed {
 			followed++
 			for reason, n := range m.Skipped {
@@ -139,7 +143,11 @@ func linkCoverage(scopes []selectedScope) map[string]any {
 	} else if followed == len(scopes) {
 		mode = "followed"
 	}
-	return map[string]any{"Symlinks": mode, "SymlinkExpansionComplete": complete, "SymlinkSkipped": skipped}
+	coverage := map[string]any{"Symlinks": mode, "SymlinkExpansionComplete": complete, "SymlinkSkipped": skipped}
+	if unsupportedPaths {
+		coverage["UnsupportedPathsSkipped"] = true
+	}
+	return coverage
 }
 
 func mergeLinkLines(lines []any) []any {

@@ -198,6 +198,7 @@ func (s *Service) List(ctx context.Context, name string, q contract.ListRequest)
 				return out, e
 			}
 			out.TreeOID = tree.TreeOID
+			out.UnsupportedPathsSkipped = out.UnsupportedPathsSkipped || tree.UnsupportedPathsSkipped
 			out.Via = tree.Via
 			for _, entry := range tree.Entries {
 				merged[entry.Path] = entry

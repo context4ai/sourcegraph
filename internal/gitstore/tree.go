@@ -25,12 +25,13 @@ type Entry struct {
 	Size          *int64
 }
 type Tree struct {
-	Via            string `json:",omitempty"`
-	Commit         string
-	TreeOID        string
-	Entries        []Entry
-	NextCursor     string
-	HasMoreResults bool
+	UnsupportedPathsSkipped bool   `json:",omitempty"`
+	Via                     string `json:",omitempty"`
+	Commit                  string
+	TreeOID                 string
+	Entries                 []Entry
+	NextCursor              string
+	HasMoreResults          bool
 }
 type treeCursor struct {
 	Commit string
@@ -94,7 +95,8 @@ func (s *Store) List(ctx context.Context, repo, commit, path string, first int, 
 	if err != nil {
 		return result, err
 	}
-	entries, err := parseEntries(data, path)
+	entries, skipped, err := parseReadableEntries(data, path)
+	result.UnsupportedPathsSkipped = skipped
 	if err != nil {
 		return result, err
 	}
@@ -172,25 +174,34 @@ func (s *Store) List(ctx context.Context, repo, commit, path string, first int, 
 	return result, nil
 }
 func parseEntries(data []byte, parent string) ([]Entry, error) {
+	entries, _, err := parseTreeEntries(data, parent, false)
+	return entries, err
+}
+
+// Repository enumeration must not let one unrepresentable filename prevent
+// access to unrelated files. Direct lookups and plugin candidates stay strict.
+func parseReadableEntries(data []byte, parent string) ([]Entry, bool, error) {
+	return parseTreeEntries(data, parent, true)
+}
+
+func parseTreeEntries(data []byte, parent string, skipUnsupported bool) ([]Entry, bool, error) {
 	result := []Entry{}
+	skipped := false
 	for _, row := range bytes.Split(data, []byte{0}) {
 		if len(row) == 0 {
 			continue
 		}
 		head, name, ok := bytes.Cut(row, []byte{'\t'})
-		if !ok || !utf8.Valid(name) {
-			return nil, contract.Fail("UNSUPPORTED_PATH_ENCODING", "Git tree path cannot be represented.", 422)
+		if !ok {
+			return nil, false, contract.Fail("INVALID_GIT_RESULT", "Malformed tree response.", 500)
 		}
 		fields := strings.Fields(string(head))
 		if (len(fields) != 4 && len(fields) != 3) || !fullSHA.MatchString(fields[2]) {
-			return nil, contract.Fail("INVALID_GIT_RESULT", "Malformed tree response.", 500)
+			return nil, false, contract.Fail("INVALID_GIT_RESULT", "Malformed tree response.", 500)
 		}
 		path := string(name)
 		if parent != "" {
 			path = parent + "/" + path
-		}
-		if err := ValidatePath(path, false); err != nil {
-			return nil, contract.Fail("UNSUPPORTED_PATH_ENCODING", "Git tree path cannot be represented.", 422)
 		}
 		e := Entry{Name: string(name), Path: path, BlobOID: fields[2], Kind: "file"}
 		switch fields[0] {
@@ -204,13 +215,20 @@ func parseEntries(data []byte, parent string) ([]Entry, error) {
 		if len(fields) == 4 && fields[3] != "-" {
 			size, err := strconv.ParseInt(fields[3], 10, 64)
 			if err != nil || size < 0 {
-				return nil, contract.Fail("INVALID_GIT_RESULT", "Invalid object size.", 500)
+				return nil, false, contract.Fail("INVALID_GIT_RESULT", "Invalid object size.", 500)
 			}
 			e.Size = &size
 		}
+		if !utf8.Valid(name) || ValidatePath(path, false) != nil {
+			if skipUnsupported {
+				skipped = true
+				continue
+			}
+			return nil, false, contract.Fail("UNSUPPORTED_PATH_ENCODING", "Git tree path cannot be represented.", 422)
+		}
 		result = append(result, e)
 	}
-	return result, nil
+	return result, skipped, nil
 }
 func (s *Store) entry(ctx context.Context, p, commit, path string) (Entry, error) {
 	return s.lookupEntry(ctx, p, commit, path, true)

@@ -15,7 +15,8 @@ func (r *linkResolver) children(parent string) (map[string]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := parseEntries(data, parent)
+	entries, skipped, err := parseReadableEntries(data, parent)
+	r.unsupportedPathsSkipped = r.unsupportedPathsSkipped || skipped
 	if err != nil {
 		return nil, err
 	}

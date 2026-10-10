@@ -69,6 +69,9 @@ func searchTextWithOptions(value any, options searchInput) string {
 	coverage, _ := meta["Coverage"].(map[string]any)
 	files, _ := result["Files"].([]any)
 	b := &searchTextBuffer{}
+	if coverage["UnsupportedPathsSkipped"] == true {
+		b.add("UnsupportedPathsSkipped: true. Filenames outside the readable UTF-8 path contract were excluded from this index.\n")
+	}
 	limit := options.MaxLinesPerFile
 	if limit == 0 {
 		limit = 10

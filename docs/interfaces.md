@@ -14,3 +14,6 @@ For an MCP client supporting Streamable HTTP:
 ```
 
 The CLI is built to `output/bin/sourcegraph-cli`; run it with `--help` for command-specific options. Use the website's Connect page for current HTTP and client examples. Personal API keys are created from a signed-in user's settings; prepare permission is additionally checked against the current administrator role. Invalid bearer credentials never silently become anonymous access.
+# Unsupported Git paths
+
+Indexing and directory enumeration skip Git filenames that cannot be addressed by the path API: invalid UTF-8, control characters, backslashes, paths over 4096 bytes, or noncanonical relative paths. Names are never rewritten, and other files remain available. Search reports `Meta.Coverage.UnsupportedPathsSkipped: true` for affected new indexes, including an MCP text warning; directory results use the same flag for excluded entries. An absent flag on an older index does not prove full coverage. Direct reads still validate paths. Diff still returns an error for unrepresentable changed paths rather than silently reporting no changes.

@@ -119,21 +119,28 @@ func (s *Store) scopeKey() string {
 // SnapshotEntries reads only tree metadata, never blob sizes. This remains safe
 // on a partial clone even when unselected blobs are absent.
 func (s *Store) SnapshotEntries(ctx context.Context, repo, commit string, paths []string) ([]Entry, error) {
+	entries, _, err := s.SnapshotEntriesWithCoverage(ctx, repo, commit, paths)
+	return entries, err
+}
+
+// SnapshotEntriesWithCoverage reports whether API-incompatible paths were
+// excluded, without rewriting their names or weakening request validation.
+func (s *Store) SnapshotEntriesWithCoverage(ctx context.Context, repo, commit string, paths []string) ([]Entry, bool, error) {
 	normalized, err := NormalizePaths(paths)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	p, err := s.fixed(ctx, repo, commit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	args := []string{"ls-tree", "-r", "-z", commit, "--"}
 	args = append(args, normalized...)
 	data, err := s.run(ctx, p, 64<<20, args...)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return parseEntries(data, "")
+	return parseReadableEntries(data, "")
 }
 
 // Blob reads an already hydrated object. It never contacts a remote.

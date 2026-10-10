@@ -56,10 +56,11 @@ func (b Builder) Build(ctx context.Context, t zoektclient.Target, opts Options) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	entries, e := store.SnapshotEntries(ctx, t.Repo, t.Commit, nil)
+	entries, skipped, e := store.SnapshotEntriesWithCoverage(ctx, t.Repo, t.Commit, nil)
 	if e != nil {
 		return a, e
 	}
+	opts.unsupportedPathsSkipped = skipped
 	return b.indexBlobs(ctx, store, t, entries, map[string]string{"commit": t.Commit, "logical_repo": t.Repo}, opts)
 }
 

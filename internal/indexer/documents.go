@@ -15,6 +15,7 @@ import (
 // Options are per-repository index settings. They apply to the next build;
 // published generations keep the settings they were built with.
 type Options struct {
+	unsupportedPathsSkipped bool
 	// SkipGenerated leaves minified JavaScript/CSS and source maps out of the
 	// text index. Lock files and generated source code stay searchable.
 	SkipGenerated bool
@@ -72,6 +73,7 @@ func (b Builder) indexBlobs(ctx context.Context, store *gitstore.Store, t zoektc
 			return artifact, err
 		}
 	}
+	links.UnsupportedPathsSkipped = links.UnsupportedPathsSkipped || opts.unsupportedPathsSkipped
 	err = b.buildIsolated(ctx, store, t, entries, metadata, opts, idx)
 	if err != nil {
 		return artifact, err

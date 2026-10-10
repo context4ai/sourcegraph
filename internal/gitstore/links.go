@@ -19,12 +19,13 @@ type LinkInfo struct {
 	FollowError string `json:"FollowError,omitempty"`
 }
 type LinkSnapshot struct {
-	Format   int
-	Followed bool
-	Paths    []string
-	Links    map[string]LinkInfo
-	Skipped  map[string]int
-	Objects  map[string]string `json:"-"`
+	UnsupportedPathsSkipped bool `json:",omitempty"`
+	Format                  int
+	Followed                bool
+	Paths                   []string
+	Links                   map[string]LinkInfo
+	Skipped                 map[string]int
+	Objects                 map[string]string `json:"-"`
 }
 
 func linkError(code, message string) error { return contract.Fail(code, message, 422) }
@@ -37,13 +38,14 @@ func LinkErrorCode(err error) string {
 }
 
 type linkResolver struct {
-	hops              int
-	trees             map[string]map[string]Entry
-	blobs             map[string][]byte
-	store             *Store
-	ctx               context.Context
-	repo, commit, dir string
-	hydrate           func([]Entry) error
+	unsupportedPathsSkipped bool
+	hops                    int
+	trees                   map[string]map[string]Entry
+	blobs                   map[string][]byte
+	store                   *Store
+	ctx                     context.Context
+	repo, commit, dir       string
+	hydrate                 func([]Entry) error
 }
 
 func (r *linkResolver) blob(e Entry) ([]byte, error) {

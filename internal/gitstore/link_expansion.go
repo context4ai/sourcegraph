@@ -258,6 +258,7 @@ func (s *Store) ExpandLinks(ctx context.Context, repo, commit string, entries []
 		result = append(result, e)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Path < result[j].Path })
+	snapshot.UnsupportedPathsSkipped = r.unsupportedPathsSkipped
 	return result, snapshot, nil
 }
 func compactLinkPaths(paths []string) []string {
