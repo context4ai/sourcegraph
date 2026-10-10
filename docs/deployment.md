@@ -18,7 +18,7 @@ Never let two instances serve the same repository or share a data directory: ind
 
 ## Fly.io
 
-`fly.toml` deploys one Source Graph Machine in `sin`, with 2 GB memory, auto-stop disabled, and a volume named `sourcegraph_data`. The starter volume should be at least 20 GB. Index memory and disk needs depend on repository size; observe real indexing before changing capacity. Do not scale this App to multiple Machines: Machines of one App would share repositories. For sharding, deploy one App per shard behind a routing access layer.
+`fly.toml` deploys one Source Graph Machine in `sin`, with 1 GB memory, auto-stop disabled, and a volume named `sourcegraph_data`. The starter volume should be at least 20 GB. Index memory and disk needs depend on repository size; observe real indexing before changing capacity. Do not scale this App to multiple Machines: Machines of one App would share repositories. For sharding, deploy one App per shard behind a routing access layer.
 
 The portal is a separate App. For a unified domain it reverse-proxies the entire `/sourcegraph/` prefix, preserving query strings, cookies and authorization. Keep the configured external origin fixed; never trust arbitrary forwarded hosts. The portal must not cache auth/API/MCP responses. Static assets may be cached independently.
 
