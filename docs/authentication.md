@@ -6,12 +6,12 @@ The site setting **Allow other users to sign in or register** defaults to off. A
 
 ## Demo callback addresses
 
-The initial service origin is `https://context4ai-sourcegraph.fly.dev`.
+Callbacks are `SOURCEGRAPH_ORIGIN` followed by `/sourcegraph/auth/google/callback` or `/sourcegraph/auth/github/callback`. The demo is published at `https://context4ai.org/sourcegraph/` through the portal, while its `SOURCEGRAPH_ORIGIN` is still the App hostname `https://context4ai-sourcegraph.fly.dev`:
 
 - Google: `https://context4ai-sourcegraph.fly.dev/sourcegraph/auth/google/callback`
 - GitHub: `https://context4ai-sourcegraph.fly.dev/sourcegraph/auth/github/callback`
 
-Use the same origin in `SOURCEGRAPH_ORIGIN`. When the portal becomes the public entry point, update this setting and the provider callbacks together. For the planned custom domain, use `https://context4ai.org/sourcegraph/auth/google/callback` and `https://context4ai.org/sourcegraph/auth/github/callback`.
+To sign in through the portal domain, change `SOURCEGRAPH_ORIGIN` to `https://context4ai.org` and update both provider callbacks to `https://context4ai.org/sourcegraph/auth/google/callback` and `https://context4ai.org/sourcegraph/auth/github/callback` at the same time.
 
 ## Create Google credentials
 

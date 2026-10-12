@@ -42,10 +42,13 @@ CI runs the same verification on pull requests and `main`; see `.github/workflow
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google web OAuth client |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth app |
 
+Repository read plugins are tuned with `SOURCEGRAPH_PLUGINS_*`; see [repository plugins](docs/ref/repository-plugins.md). The CLI reads `SOURCEGRAPH_URL` and `SOURCEGRAPH_API_TOKEN`; see [interfaces](docs/interfaces.md#cli).
+
 Never put credentials in deployment JSON, source code or images. Public non-secret defaults live in `config/deployment.json`.
 
 ## Further reading
 
+- [Self-Hosting](https://context4ai.org/context/pages/87e9a0f083fa7c393fae3f5bbb123a11.html) and [Operations](https://context4ai.org/context/pages/b6b5d0b7d4370275aa82611da7136e4f.html) — guides on the documentation site
 - [Interfaces](docs/interfaces.md) — HTTP routes, MCP and CLI
 - [Deployment](docs/deployment.md) — Fly.io, databases, backups and recovery
 - [Repository plugins](docs/ref/repository-plugins.md) — Wasm plugin contract
