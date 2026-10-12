@@ -2,7 +2,7 @@
 
 **在固定 Git 版本上毫秒级搜索与阅读代码 —— 面向人、脚本与 AI Agent。**
 
-[在线演示](https://context4ai.org/sourcegraph/) · [文档](docs/README.md) · [开发指南](DEVELOPMENT.md) · [English](README.md)
+[在线演示](https://context4ai.org/sourcegraph/) · [文档](https://context4ai.org/context/pages/e1ce6ff3105ae09d13eec7cbe39ae133.html) · [参考文档](docs/README.md) · [参与贡献](CONTRIBUTING.md) · [English](README.md)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)
@@ -19,7 +19,7 @@ Context Source Graph 是一个可自托管的代码搜索服务，基于 Go、Gi
 
 - **毫秒级，而不是秒级。** 基于索引的搜索在服务端通常 **5 ms 以内** 完成。与调用方部署在同一机房时，包含网络在内的完整请求也能 **远低于 100 ms**，比在本地检出目录里跑 `grep` 或 `rg` 更快。
 - **结果可复现。** 分支和标签在读取前先解析为 commit，搜索结果、它指向的文件以及之后的 diff 都对应同一个快照。
-- **一套契约，四种入口。** 浏览器、HTTP、MCP 与 CLI 共享相同的操作：`repositories`、`availability`、`resolve`、`search`、`read`、`read_many`、`list`、`diff` 和 `prepare`。
+- **一套契约，四种入口。** 浏览器、HTTP、MCP 与 CLI 共享相同的操作：`repositories`、`availability`、`resolve`、`search`、`read`、`list`、`diff` 和 `prepare`；MCP 另有 `read_many`，一次调用读取多处。详见[接口](docs/interfaces.md)。
 - **为 Agent 而生。** 无状态的 Streamable HTTP MCP 端点可接入任意 MCP 客户端；匿名访问只读，且仅限公开仓库。
 - **轻量。** 单个进程即可管理 Git 镜像、Zoekt 子进程和后台索引。默认使用 SQLite，同时支持 PostgreSQL 与 MongoDB。
 - **可扩展的读取。** 仓库可以自带 Wasm 插件（`<name>.sourcegraph.wasm`），定制 `read` 与 `read_many` 的文件呈现方式，详见[仓库插件](docs/ref/repository-plugins.md)。
@@ -94,6 +94,16 @@ Fly.io 配置、数据库、备份与恢复见[部署文档](docs/deployment.md)
 
 ## 文档
 
+Context 文档站的 [Source Graph 文档](https://context4ai.org/context/pages/e1ce6ff3105ae09d13eec7cbe39ae133.html)介绍概念与日常使用（与英文共用地址，按语言偏好显示中文）：
+
+| 分类 | 页面 |
+| --- | --- |
+| 原理 | [概览](https://context4ai.org/context/pages/e1ce6ff3105ae09d13eec7cbe39ae133.html) · [固定版本的搜索与阅读](https://context4ai.org/context/pages/9b8f7c105b990cf29a3a7936dc0ff462.html) · [为 Context 提供证据](https://context4ai.org/context/pages/3bbf57d3dcee4b0ea0433d3b367cc045.html) |
+| 指南 | [连接](https://context4ai.org/context/pages/ef2f49d8f38697ceb1f7aaa88deba84d.html) · [自行部署](https://context4ai.org/context/pages/87e9a0f083fa7c393fae3f5bbb123a11.html) · [登记仓库](https://context4ai.org/context/pages/aa50227a56841f0d42fe08e9dfa4cd53.html) · [认证与访问控制](https://context4ai.org/context/pages/1388f44bd0735b535af45b2eefc03e30.html) · [运维](https://context4ai.org/context/pages/b6b5d0b7d4370275aa82611da7136e4f.html) |
+| 参考 | [CLI](https://context4ai.org/context/pages/7b5a8c8039ac425e57fbaeb65690b5b6.html) · [配置](https://context4ai.org/context/pages/8165da3ea04839f9d9684e308d054177.html) · [HTTP 与 MCP](https://context4ai.org/context/pages/a8fe02c341a72e370f653228d71e9982.html) · [查询语法](https://context4ai.org/context/pages/e6f59a794ecd01b09dc543afbc9f5da1.html) |
+
+本仓库的参考文档描述当前实现：
+
 | | |
 | --- | --- |
 | [认证](docs/authentication.md) | Google / GitHub 登录、管理员初始化、注册策略 |
@@ -106,4 +116,8 @@ Fly.io 配置、数据库、备份与恢复见[部署文档](docs/deployment.md)
 
 [MIT](LICENSE)。Context Source Graph 使用了 Zoekt（Apache-2.0）及其他开源组件，详见 [NOTICE](NOTICE)。项目名称不代表与 Sourcegraph 平台存在任何关联。
 
-本项目是 [Context](https://github.com/context4ai/context) 的一部分。
+## 生态与参与贡献
+
+Source Graph 是 [Context for AI](https://context4ai.org) 的一部分。[Context](https://github.com/context4ai/context) 通过它远程读取代码证据（[为 Context 提供证据](https://context4ai.org/context/pages/3bbf57d3dcee4b0ea0433d3b367cc045.html)），[Portal](https://github.com/context4ai/portal) 在 `/sourcegraph/` 下提供它。
+
+提交 Pull Request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。使用问题请到 [GitHub Discussions](https://github.com/context4ai/sourcegraph/discussions)（见 [SUPPORT.md](SUPPORT.md)），安全漏洞按 [SECURITY.md](SECURITY.md) 报告。参与本项目须遵守[行为准则](CODE_OF_CONDUCT.md)。

@@ -1,6 +1,6 @@
 # 仓库读取插件
 
-Sourcegraph 通过 wazero 执行仓库内的 Wasm，为 MCP `read` / `read_many` 增加可选增强。宿主不了解业务 schema，不解析知识库 YAML，不提供任意命令执行。
+Context Source Graph 通过 wazero 执行仓库内的 Wasm，为 MCP `read` / `read_many` 增加可选增强。宿主不了解业务 schema，不解析知识库 YAML，不提供任意命令执行。
 
 网站接入页的「插件扩展与使用」打开 `/sourcegraph/plugins/llms.txt`，在同一文件内涵盖 MCP 配置、Agent 使用、开发步骤、完整 ABI 和运行配置，无需跳转其他文档。修改 ABI 时同步更新 web/plugins/llms.txt 中的对应章节。
 

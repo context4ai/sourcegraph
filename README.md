@@ -2,7 +2,7 @@
 
 **Millisecond code search and reading at pinned Git revisions — for people, scripts and AI agents.**
 
-[Live demo](https://context4ai.org/sourcegraph/) · [Documentation](docs/README.md) · [Development](DEVELOPMENT.md) · [简体中文](README.zh-CN.md)
+[Live demo](https://context4ai.org/sourcegraph/) · [Documentation](https://context4ai.org/context/pages/e1ce6ff3105ae09d13eec7cbe39ae133.html) · [Reference docs](docs/README.md) · [Contributing](CONTRIBUTING.md) · [简体中文](README.zh-CN.md)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)
@@ -19,7 +19,7 @@ It is built for the workload AI coding agents generate: many small, precise `sea
 
 - **Milliseconds, not seconds.** Indexed search typically completes in **under 5 ms** on the server. Deployed in the same region as its callers, a full request — network included — stays **well under 100 ms**, which is faster than running `grep` or `rg` over a local checkout.
 - **Reproducible answers.** Branches and tags resolve to a commit before anything is read, so a search result, the file it points to and a later diff all refer to the same snapshot.
-- **One contract, four surfaces.** Browser, HTTP, MCP and CLI share the same operations: `repositories`, `availability`, `resolve`, `search`, `read`, `read_many`, `list`, `diff` and `prepare`.
+- **One contract, four surfaces.** Browser, HTTP, MCP and CLI share the same operations: `repositories`, `availability`, `resolve`, `search`, `read`, `list`, `diff` and `prepare`. MCP adds `read_many` for several reads in one call. See [interfaces](docs/interfaces.md).
 - **Agent-ready.** A stateless Streamable HTTP MCP endpoint works with any MCP client; anonymous access is read-only and limited to public repositories.
 - **Small footprint.** One process manages Git mirrors, the Zoekt child process and background indexing. SQLite by default; PostgreSQL and MongoDB are supported.
 - **Extensible reads.** Repositories can ship Wasm plugins (`<name>.sourcegraph.wasm`) that change how `read` and `read_many` present files. See [repository plugins](docs/ref/repository-plugins.md).
@@ -94,6 +94,16 @@ Fly.io configuration, databases, backups and recovery are covered in [deployment
 
 ## Documentation
 
+The [Source Graph documentation](https://context4ai.org/context/pages/e1ce6ff3105ae09d13eec7cbe39ae133.html) on the Context site covers the concepts and day-to-day use:
+
+| Section | Pages |
+| --- | --- |
+| How It Works | [Overview](https://context4ai.org/context/pages/e1ce6ff3105ae09d13eec7cbe39ae133.html) · [Pinned Search and Reads](https://context4ai.org/context/pages/9b8f7c105b990cf29a3a7936dc0ff462.html) · [Evidence for Context](https://context4ai.org/context/pages/3bbf57d3dcee4b0ea0433d3b367cc045.html) |
+| Guides | [Connecting](https://context4ai.org/context/pages/ef2f49d8f38697ceb1f7aaa88deba84d.html) · [Self-Hosting](https://context4ai.org/context/pages/87e9a0f083fa7c393fae3f5bbb123a11.html) · [Registering Repositories](https://context4ai.org/context/pages/aa50227a56841f0d42fe08e9dfa4cd53.html) · [Authentication and Access Control](https://context4ai.org/context/pages/1388f44bd0735b535af45b2eefc03e30.html) · [Operations](https://context4ai.org/context/pages/b6b5d0b7d4370275aa82611da7136e4f.html) |
+| Reference | [CLI](https://context4ai.org/context/pages/7b5a8c8039ac425e57fbaeb65690b5b6.html) · [Configuration](https://context4ai.org/context/pages/8165da3ea04839f9d9684e308d054177.html) · [HTTP and MCP](https://context4ai.org/context/pages/a8fe02c341a72e370f653228d71e9982.html) · [Query Syntax](https://context4ai.org/context/pages/e6f59a794ecd01b09dc543afbc9f5da1.html) |
+
+The reference documents in this repository describe the current implementation:
+
 | | |
 | --- | --- |
 | [Authentication](docs/authentication.md) | Google / GitHub sign-in, administrator bootstrap, registration policy |
@@ -106,4 +116,8 @@ Fly.io configuration, databases, backups and recovery are covered in [deployment
 
 [MIT](LICENSE). Context Source Graph uses Zoekt (Apache-2.0) and other open-source components; see [NOTICE](NOTICE). The project name does not imply affiliation with the Sourcegraph platform.
 
-Part of [Context](https://github.com/context4ai/context).
+## Ecosystem and contributing
+
+Source Graph is part of [Context for AI](https://context4ai.org). [Context](https://github.com/context4ai/context) reads code evidence through it remotely ([Evidence for Context](https://context4ai.org/context/pages/3bbf57d3dcee4b0ea0433d3b367cc045.html)), and [Portal](https://github.com/context4ai/portal) serves it at `/sourcegraph/`.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Ask questions in [GitHub Discussions](https://github.com/context4ai/sourcegraph/discussions) (see [SUPPORT.md](SUPPORT.md)) and report vulnerabilities through [SECURITY.md](SECURITY.md). Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
