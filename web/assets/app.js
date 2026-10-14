@@ -38,7 +38,9 @@
   // The header mark matches the context4ai.org homepage and documentation site.
   var BRAND_MARK = MARK.replace('class="h-5 w-5"', 'class="h-[22px] w-[22px]"');
 
-  function lang() { try { return localStorage.getItem('cs.lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'); } catch (_) { return 'zh'; } }
+  // Preferences use the keys and values of the homepage and documentation site on this origin.
+  function lang() { try { var l = localStorage.getItem('context-locale'); return (l ? /^zh/i.test(l) : navigator.language.startsWith('zh')) ? 'zh' : 'en'; } catch (_) { return 'zh'; } }
+  function toggleLang() { try { localStorage.setItem('context-locale', lang() === 'en' ? 'zh-CN' : 'en-US'); } catch (_) {} }
   function t(zh, en) { return lang() === 'en' ? en : zh; }
   function user() { return window.API.session && window.API.session.user || null; }
   function canManage() { return !!(window.API.session && window.API.session.permissions.manage); }
@@ -60,7 +62,7 @@
 
   function toggleTheme() {
     var next = isDark() ? 'light' : 'dark';
-    try { localStorage.setItem('cs.theme', next); } catch (_) {}
+    try { localStorage.setItem('context-theme', next); } catch (_) {}
     var apply = function () { document.documentElement.classList.toggle('dark', next === 'dark'); renderHeader(); };
     if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(apply);
     else apply();
@@ -126,7 +128,7 @@
 
     host.querySelector('#theme').onclick = toggleTheme;
     host.querySelector('#lang').onclick = function () {
-      try { localStorage.setItem('cs.lang', lang() === 'en' ? 'zh' : 'en'); } catch (_) {}
+      toggleLang();
       renderHeader(); applyLang(); footer(); document.dispatchEvent(new Event('langchange'));
     };
     var login = host.querySelector('#login');
@@ -265,7 +267,7 @@
       '</div></footer>';
   }
 
-  window.App = { ready: API.ready, canManage: canManage, t: t, lang: lang, user: user, esc: esc, applyLang: applyLang, requireLogin: requireLogin, toast: toast, copy: copy, status: status, short: short, roll: roll, Repo: Repo, clock: clock, validTime: validTime, ICON: ICON, MARK: MARK, isDark: isDark };
+  window.App = { ready: API.ready, canManage: canManage, t: t, lang: lang, toggleLang: toggleLang, user: user, esc: esc, applyLang: applyLang, requireLogin: requireLogin, toast: toast, copy: copy, status: status, short: short, roll: roll, Repo: Repo, clock: clock, validTime: validTime, ICON: ICON, MARK: MARK, isDark: isDark };
 
   document.addEventListener('DOMContentLoaded', function () {
     renderHeader(); footer(); applyLang();

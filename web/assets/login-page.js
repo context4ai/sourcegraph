@@ -45,7 +45,7 @@
     render();
   }
   $('login-lang').onclick = function () {
-    try { localStorage.setItem('cs.lang', A.lang() === 'en' ? 'zh' : 'en'); } catch (_) {}
+    A.toggleLang();
     render();
   };
   $('login-retry').onclick = load;
