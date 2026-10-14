@@ -25,12 +25,17 @@ func main() {
 		}
 		fields[k] = v
 	}
-	if s.Err() != nil || fields["protocol"] != "https" || fields["host"] != "github.com" {
+	host := os.Getenv("SOURCEGRAPH_GIT_HOST")
+	if s.Err() != nil || fields["protocol"] != "https" || host == "" || fields["host"] != host {
 		return
 	}
 	token := os.Getenv("SOURCEGRAPH_GIT_TOKEN")
 	if token == "" || strings.ContainsAny(token, "\r\n\x00") {
 		return
 	}
-	fmt.Printf("username=oauth2\npassword=%s\n\n", token)
+	username := os.Getenv("SOURCEGRAPH_GIT_USERNAME")
+	if username == "" || strings.ContainsAny(username, "\r\n\x00") {
+		username = "oauth2"
+	}
+	fmt.Printf("username=%s\npassword=%s\n\n", username, token)
 }

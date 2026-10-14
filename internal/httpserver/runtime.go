@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/config"
 	"github.com/context4ai/sourcegraph/internal/contract"
 	"github.com/context4ai/sourcegraph/internal/control"
@@ -121,6 +122,10 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 			}
 			if settings == nil {
 				writeError(w, "", 503, "SETTINGS_UNAVAILABLE", "Site settings are not configured.")
+				return
+			}
+			if r.URL.Path == sitesettings.AdminPath+"/"+sitesettings.CodeSourceName && s != nil {
+				codeSourceSettings(w, r, s, settings)
 				return
 			}
 			settings.ServeHTTP(w, r)
@@ -287,6 +292,10 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 		case Prefix + "/api/admin/v1/instances":
 			if method("GET") {
 				result, err = s.Instances(r.Context())
+			}
+		case Prefix + "/v1/code-sources":
+			if method("GET") {
+				result = codesources.List()
 			}
 		case Prefix + "/v1/capabilities":
 			if method("GET") {

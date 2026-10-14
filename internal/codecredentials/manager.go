@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 )
 
@@ -35,6 +36,8 @@ type Status struct {
 	Expires    *time.Time `json:"expires_at"`
 	State      string     `json:"state"`
 	Source     string     `json:"source"`
+	// Retired marks an alias kept only for already registered repositories.
+	Retired bool `json:"retired,omitempty"`
 }
 type Input struct {
 	Revision int64      `json:"revision"`
@@ -50,12 +53,12 @@ type Candidate struct {
 type Manager struct {
 	store         Store
 	aead          cipher.AEAD
-	legacy        string
 	mu            sync.Mutex
-	legacyInvalid bool
+	legacyInvalid map[string]bool
 }
 
-func New(root, legacy string, store Store) (*Manager, error) {
+// New reads deployment environment tokens through each code source's token_env.
+func New(root string, store Store) (*Manager, error) {
 	var key []byte
 	var err error
 	if raw := os.Getenv("SOURCEGRAPH_CREDENTIAL_KEY"); raw != "" {
@@ -94,26 +97,37 @@ func New(root, legacy string, store Store) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{store: store, aead: aead, legacy: legacy}, nil
+	return &Manager{store: store, aead: aead, legacyInvalid: map[string]bool{}}, nil
 }
 func recordID(owner, kind string) string {
 	sum := sha256.Sum256([]byte(owner + "\x00" + kind))
 	return hex.EncodeToString(sum[:])
 }
-func validKind(kind string) bool { return kind == "github" || kind == "git" }
+
+// defaultProvider is the provider of repositories registered before providers were recorded.
+const defaultProvider = "github"
+
+func validKind(kind string) bool {
+	for _, k := range codesources.Kinds() {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
 func (m *Manager) load(ctx context.Context, owner, kind string) (Record, string, error) {
 	if !validKind(kind) {
-		return Record{}, "", contract.Fail("INVALID_CREDENTIAL_KIND", "Choose github or git.", 400)
+		return Record{}, "", contract.Fail("INVALID_CREDENTIAL_KIND", "Unknown code source.", 400)
 	}
 	id := recordID(owner, kind)
 	r, err := m.store.Get(ctx, id)
 	if errors.Is(err, missing) {
 		r = Record{ID: id}
-		if owner == Global && kind == "github" {
+		if owner == Global {
 			m.mu.Lock()
-			r.Invalid = m.legacyInvalid
+			r.Invalid = m.legacyInvalid[kind]
 			m.mu.Unlock()
-			return r, m.legacy, nil
+			return r, codesources.EnvToken(kind), nil
 		}
 		return r, "", nil
 	}
@@ -152,14 +166,23 @@ func status(r Record, token string, now time.Time) Status {
 	}
 	return st
 }
+
+// Status covers every visible source; a retired alias appears only while it still holds a token.
 func (m *Manager) Status(ctx context.Context, owner string) (map[string]Status, error) {
 	out := map[string]Status{}
-	for _, kind := range []string{"github", "git"} {
+	for _, kind := range codesources.Kinds() {
 		r, t, err := m.load(ctx, owner, kind)
 		if err != nil {
 			return nil, err
 		}
-		out[kind] = status(r, t, time.Now())
+		st := status(r, t, time.Now())
+		if codesources.IsAlias(kind) {
+			if !st.Configured {
+				continue
+			}
+			st.Retired = true
+		}
+		out[kind] = st
 	}
 	return out, nil
 }
@@ -205,12 +228,12 @@ func (m *Manager) Save(ctx context.Context, owner, kind string, in Input) (Statu
 
 // Credential providers are isolated; repository owners take precedence.
 func (m *Manager) Candidates(ctx context.Context, owner string, provider ...string) ([]Candidate, error) {
-	kind := "github"
+	kind := defaultProvider
 	if len(provider) > 0 && provider[0] != "" {
 		kind = provider[0]
 	}
 	if !validKind(kind) {
-		return nil, contract.Fail("INVALID_CODE_PROVIDER", "Choose github or git.", 400)
+		return nil, contract.Fail("INVALID_CODE_PROVIDER", "Unknown code source.", 400)
 	}
 	owners := []string{}
 	if owner != "" && owner != Global {
@@ -232,19 +255,26 @@ func (m *Manager) Candidates(ctx context.Context, owner string, provider ...stri
 			out = append(out, Candidate{t, who, kind, r.Revision})
 		}
 	}
+	// GitHub rejects a revoked token even for public repositories, so anonymous access is tried last.
+	if codesources.AllowsAnonymous(kind) {
+		out = append(out, Candidate{kind: kind})
+	}
 	if len(out) == 0 {
-		return []Candidate{{Token: "", kind: kind}}, nil
+		return nil, contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Configure an unexpired personal or global code-service credential.", 503)
 	}
 	return out, nil
 }
 func (m *Manager) Report(ctx context.Context, c Candidate, invalid bool) {
+	if c.Token == "" {
+		return
+	}
 	r, t, err := m.load(ctx, c.owner, c.kind)
 	if err != nil || r.Revision != c.revision || t != c.Token || r.Invalid == invalid {
 		return
 	}
 	if r.Revision == 0 {
 		m.mu.Lock()
-		m.legacyInvalid = invalid
+		m.legacyInvalid[c.kind] = invalid
 		m.mu.Unlock()
 		return
 	}
@@ -265,10 +295,13 @@ func (m *Manager) Warnings(ctx context.Context) []Warning {
 	out := []Warning{}
 	values, err := m.Status(ctx, Global)
 	if err != nil {
-		return []Warning{{Kind: "github", State: "unavailable"}}
+		return []Warning{{Kind: defaultProvider, State: "unavailable"}}
 	}
-	for _, kind := range []string{"github", "git"} {
-		v := values[kind]
+	for _, kind := range codesources.Kinds() {
+		v, ok := values[kind]
+		if !ok {
+			continue
+		}
 		if v.State == "expired" || v.State == "invalid" || v.State == "expiring" {
 			out = append(out, Warning{kind, v.State, v.Expires})
 		}

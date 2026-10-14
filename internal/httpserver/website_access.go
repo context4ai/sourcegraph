@@ -18,7 +18,7 @@ import (
 func publicRead(r *http.Request) bool {
 	if r.Method == "GET" {
 		switch r.URL.Path {
-		case Prefix + "/v1/repo/plugins", Prefix + "/v1/capabilities", Prefix + "/v1/repos", Prefix + "/v1/repo/availability", Prefix + "/v1/repo/commits", Prefix + "/api/admin/v1/repos", Prefix + "/api/admin/v1/repo", Prefix + "/api/admin/v1/statistics":
+		case Prefix + "/v1/repo/plugins", Prefix + "/v1/capabilities", Prefix + "/v1/code-sources", Prefix + "/v1/repos", Prefix + "/v1/repo/availability", Prefix + "/v1/repo/commits", Prefix + "/api/admin/v1/repos", Prefix + "/api/admin/v1/repo", Prefix + "/api/admin/v1/statistics":
 			return true
 		}
 	}

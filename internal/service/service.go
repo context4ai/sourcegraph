@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/context4ai/sourcegraph/internal/codecredentials"
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 	"github.com/context4ai/sourcegraph/internal/control"
 	"github.com/context4ai/sourcegraph/internal/gitstore"
@@ -99,7 +100,7 @@ func New(db Store, root, helper, token string) (*Service, error) {
 	if sqlDB, ok := db.(interface{ DocumentDB() *sqlstore.DB }); ok {
 		credentialStore = codecredentials.SQLStore{DB: sqlDB.DocumentDB()}
 	}
-	credentials, err := codecredentials.New(root, token, credentialStore)
+	credentials, err := codecredentials.New(root, credentialStore)
 	if err != nil {
 		f.Close()
 		c.Close()
@@ -157,15 +158,19 @@ func (s *Service) RegisterWithOptions(ctx context.Context, name string, p contro
 }
 
 func (s *Service) RegisterWithVisibility(ctx context.Context, name string, p control.Policy, interval int, mode string, groups []control.PathGroup, publicRead *bool, key string) (control.Repository, error) {
-	return s.RegisterWithProvider(ctx, name, p, interval, mode, groups, publicRead, "github", key)
+	return s.RegisterWithProvider(ctx, name, p, interval, mode, groups, publicRead, defaultCodeProvider, key)
 }
 
 func (s *Service) RegisterWithProvider(ctx context.Context, name string, p control.Policy, interval int, mode string, groups []control.PathGroup, publicRead *bool, provider, key string) (control.Repository, error) {
 	if provider == "" {
-		provider = "github"
+		provider = defaultCodeProvider
 	}
-	if provider != "github" && provider != "git" {
-		return control.Repository{}, contract.Fail("INVALID_CODE_PROVIDER", "Choose github or git.", 400)
+	source, known := codesources.Lookup(provider)
+	if !known {
+		return control.Repository{}, contract.Fail("INVALID_CODE_PROVIDER", "Choose one of the configured code sources.", 400)
+	}
+	if source.Host == "" {
+		return control.Repository{}, contract.Fail("CODE_SOURCE_NOT_CONFIGURED", "Configure this code source's host before registering repositories.", 409)
 	}
 	mode, groups, configErr := control.NormalizeIndexConfig(mode, groups)
 	if configErr != nil {
@@ -184,7 +189,7 @@ func (s *Service) RegisterWithProvider(ctx context.Context, name string, p contr
 	if publicRead != nil && !*publicRead {
 		registrationDigest = digest([]any{registrationDigest, false})
 	}
-	if provider != "github" {
+	if provider != defaultCodeProvider {
 		registrationDigest = digest([]any{registrationDigest, provider})
 	}
 	if e := gitstore.ValidateRepo(name); e != nil {
@@ -212,7 +217,7 @@ func (s *Service) RegisterWithProvider(ctx context.Context, name string, p contr
 			return control.Repository{}, e
 		}
 	}
-	r := control.Repository{CodeProvider: provider, CreatorID: identity.UserID(ctx), PublicRead: publicRead, IndexMode: mode, PathGroups: groups, ID: control.ID(name), Name: name, Revision: 1, PolicyRevision: 1, Enabled: true, Policy: p, SyncIntervalMinutes: interval, Updated: time.Now().UTC(), Heads: map[string]string{}, Versions: []control.Version{}}
+	r := control.Repository{CodeProvider: provider, CodeHost: source.Host, CreatorID: identity.UserID(ctx), PublicRead: publicRead, IndexMode: mode, PathGroups: groups, ID: control.ID(name), Name: name, Revision: 1, PolicyRevision: 1, Enabled: true, Policy: p, SyncIntervalMinutes: interval, Updated: time.Now().UTC(), Heads: map[string]string{}, Versions: []control.Version{}}
 	for _, group := range r.WorkGroups() {
 		groupKey := k
 		if group != "" {

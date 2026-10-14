@@ -4,16 +4,25 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
 
-	deployment "github.com/context4ai/sourcegraph/config"
 	"github.com/context4ai/sourcegraph/internal/contract"
 )
 
-func remoteURL(repo string) string {
-	return strings.TrimRight(deployment.Load().CodeHost, "/") + "/" + repo + ".git"
+func remoteURL(repo, host string) string {
+	return strings.TrimRight(host, "/") + "/" + repo + ".git"
+}
+
+// credentialEnv scopes the token to the remote's host; the helper answers no other host.
+func credentialEnv(remote string, o FetchOptions) []string {
+	host := ""
+	if u, err := url.Parse(remote); err == nil {
+		host = u.Host
+	}
+	return []string{"SOURCEGRAPH_GIT_TOKEN=" + o.Token, "SOURCEGRAPH_GIT_HOST=" + host, "SOURCEGRAPH_GIT_USERNAME=" + o.Username}
 }
 func fetchConfiguration(o FetchOptions) []string {
 	return []string{"-c", "credential.helper=", "-c", "credential.helper=" + o.CredentialHelper, "-c", "credential.useHttpPath=true", "-c", "http.followRedirects=false", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.version=2", "-c", "gc.auto=0"}
@@ -24,7 +33,7 @@ func fetchConfiguration(o FetchOptions) []string {
 func (s *Store) requirePartialClone(ctx context.Context, p, remote string, o FetchOptions) error {
 	args := append(fetchConfiguration(o), "ls-remote", "--exit-code", remote, "HEAD")
 	c := s.command(ctx, p, args...)
-	c.Env = append(c.Env, "SOURCEGRAPH_GIT_TOKEN="+o.Token, "GIT_TRACE_PACKET=1")
+	c.Env = append(append(c.Env, credentialEnv(remote, o)...), "GIT_TRACE_PACKET=1")
 	c.Stdout = io.Discard
 	trace := &prefixTrace{limit: 1 << 20}
 	c.Stderr = trace
@@ -59,7 +68,7 @@ func (s *Store) HydratePaths(ctx context.Context, repo, commit string, paths []s
 	if len(paths) == 0 {
 		return contract.Fail("INVALID_PATHS", "A monorepo group must contain at least one path.", 400)
 	}
-	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") {
+	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") || (o.Token == "" && !o.Anonymous) {
 		return contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Git credential is not configured.", 503)
 	}
 	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
@@ -79,8 +88,11 @@ func (s *Store) HydrateEntries(ctx context.Context, repo, commit string, entries
 	if s.group == "" {
 		return errors.New("object hydration requires a group store")
 	}
-	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") {
+	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") || (o.Token == "" && !o.Anonymous) {
 		return contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Git credential is not configured.", 503)
+	}
+	if !strings.HasPrefix(o.Host, "https://") {
+		return contract.Fail("CODE_SOURCE_NOT_CONFIGURED", "The repository's code source has no host.", 503)
 	}
 	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
 		o.Timeout = 15 * time.Minute
@@ -121,10 +133,11 @@ func (s *Store) HydrateEntries(ctx context.Context, repo, commit string, entries
 		if end > len(missing) {
 			end = len(missing)
 		}
-		args := append(fetchConfiguration(o), "fetch", "--no-tags", "--no-write-fetch-head", "--stdin", remoteURL(repo))
+		remote := remoteURL(repo, o.Host)
+		args := append(fetchConfiguration(o), "fetch", "--no-tags", "--no-write-fetch-head", "--stdin", remote)
 		batchCtx, batchCancel := context.WithCancel(ctx)
 		c := s.command(batchCtx, p, args...)
-		c.Env = append(c.Env, "SOURCEGRAPH_GIT_TOKEN="+o.Token)
+		c.Env = append(c.Env, credentialEnv(remote, o)...)
 		c.Stdin = strings.NewReader(strings.Join(missing[start:end], "\n") + "\n")
 		c.Stdout = io.Discard
 		diagnostic := &prefixTrace{limit: 64 << 10}

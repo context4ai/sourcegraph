@@ -20,9 +20,13 @@ type FetchOptions struct {
 	DefaultBranch    bool
 	CredentialHelper string
 	Token            string
-	Branches         []string
-	MinFreeBytes     uint64
-	Timeout          time.Duration
+	// Host is the HTTPS origin of the repository's code source; Anonymous permits an empty token.
+	Host         string
+	Username     string
+	Anonymous    bool
+	Branches     []string
+	MinFreeBytes uint64
+	Timeout      time.Duration
 }
 type Commit struct {
 	SHA           string
@@ -58,8 +62,11 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 			return contract.Fail("INVALID_BRANCH", "Use a short branch name.", 400)
 		}
 	}
-	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") {
+	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") || (o.Token == "" && !o.Anonymous) {
 		return contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Git credential is not configured.", 503)
+	}
+	if !strings.HasPrefix(o.Host, "https://") {
+		return contract.Fail("CODE_SOURCE_NOT_CONFIGURED", "The repository's code source has no host.", 503)
 	}
 	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
 		o.Timeout = 15 * time.Minute
@@ -111,7 +118,7 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 	if _, err = s.repoPath(repo); err != nil {
 		return err
 	}
-	remote := remoteURL(repo)
+	remote := remoteURL(repo, o.Host)
 	if o.DefaultBranch {
 		branch, err := s.discoverDefaultBranch(ctx, p, remote, o)
 		if err != nil {
@@ -148,7 +155,7 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 		args = append(args, "+refs/heads/"+b+":refs/heads/"+b)
 	}
 	command := s.command(ctx, p, args...)
-	command.Env = append(command.Env, "SOURCEGRAPH_GIT_TOKEN="+o.Token)
+	command.Env = append(command.Env, credentialEnv(remote, o)...)
 	command.Stdout = io.Discard
 	diagnostic := &prefixTrace{limit: 64 << 10}
 	command.Stderr = diagnostic

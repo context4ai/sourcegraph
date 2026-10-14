@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 	"github.com/context4ai/sourcegraph/internal/sso"
 )
@@ -24,6 +25,8 @@ type Config struct {
 	RequestTimeoutSeconds  int        `json:"request_timeout_seconds"`
 	ShutdownTimeoutSeconds int        `json:"shutdown_timeout_seconds"`
 	MaxBodyBytes           int64      `json:"max_body_bytes"`
+	// CodeSources overrides code source fields at startup; set fields are read-only on the website.
+	CodeSources map[string]codesources.Override `json:"code_sources"`
 }
 
 func Defaults() Config {
@@ -50,6 +53,9 @@ func Load(path string) (Config, error) {
 }
 func (c Config) Validate() error {
 	if e := c.SSO.Validate(); e != nil {
+		return e
+	}
+	if e := codesources.Validate(c.CodeSources); e != nil {
 		return e
 	}
 	if c.ListenHost != "127.0.0.1" && c.ListenHost != "0.0.0.0" && c.ListenHost != "::1" && c.ListenHost != "::" {

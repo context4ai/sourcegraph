@@ -73,7 +73,7 @@ docker run --rm -p 8080:8080 -v sourcegraph-data:/data \
   context-sourcegraph
 ```
 
-Open <http://localhost:8080/sourcegraph/>. Public GitHub repositories need no token. Without OAuth credentials the site is an anonymous, read-only instance; add Google or GitHub OAuth to enable administration — the first verified user becomes the administrator ([authentication](docs/authentication.md)).
+Open <http://localhost:8080/sourcegraph/>. Public GitHub repositories need no token; a custom Git host can be added in system settings or a startup file ([code sources](docs/interfaces.md#code-sources)). Without OAuth credentials the site is an anonymous, read-only instance; add Google or GitHub OAuth to enable administration — the first verified user becomes the administrator ([authentication](docs/authentication.md)).
 
 All environment variables are listed in [DEVELOPMENT.md](DEVELOPMENT.md#configuration).
 

@@ -11,6 +11,14 @@ All routes live under `/sourcegraph/`. Repository names use `owner/repository`, 
 
 Use MCP discovery to obtain the current tool input schemas. `GET /sourcegraph/v1/capabilities` lists the HTTP operations.
 
+## Code reader links
+
+```text
+/sourcegraph/code?repo=owner%2Frepository&path=src%2Fmain.go&commit=<full SHA>#L20-L35
+```
+
+Use `revision=<branch or tag>` instead of `commit`, or omit both for the default branch; the reader resolves it to a fixed commit and rewrites the address to `commit=<full SHA>&branch=<branch>`. A `commit` value that is not a full SHA, such as `commit=main`, is read as a revision. A pinned SHA outside retention is never replaced silently: when the same path exists on the latest default-branch commit, the reader offers to open it there and states which commit it replaced, since line numbers may differ.
+
 ## MCP
 
 For an MCP client supporting Streamable HTTP:
@@ -30,6 +38,7 @@ Repository routes take `?repo=owner/repository`.
 | `GET /sourcegraph/healthz`, `GET /sourcegraph/readyz` | Liveness and readiness |
 | `GET /sourcegraph/v1/capabilities` | Supported operations |
 | `GET /sourcegraph/v1/repos` | Repository catalog |
+| `GET /sourcegraph/v1/code-sources` | Configured code sources in display order: `id/name/host/username/anonymous/editable/locked` |
 | `GET /sourcegraph/v1/repo/availability` | Indexed commits and readiness; `/v1/repo/commits` is an alias |
 | `GET /sourcegraph/v1/repo/plugins` | Read plugins available for a revision |
 | `POST /sourcegraph/v1/repo/resolve` | Resolve a branch or SHA to a fixed commit |
@@ -40,6 +49,27 @@ Repository routes take `?repo=owner/repository`.
 | `POST /sourcegraph/api/admin/v1/repo/prepare` | Queue indexing or synchronization |
 
 Repository registration, maintenance, statistics and site settings live under `/sourcegraph/api/admin/` and are used by the website's administration pages. Use the Connect page for current request examples.
+
+### Code sources
+
+Every instance has exactly two code sources, listed GitHub first:
+
+| id | Default host | Token variable | Anonymous | Editable on the website |
+| --- | --- | --- | --- | --- |
+| `github` | `https://github.com` | `SOURCEGRAPH_GIT_TOKEN` | yes | no |
+| `git` | none | `SOURCEGRAPH_CUSTOM_GIT_TOKEN` | no | yes |
+
+Settings apply in this order, later non-empty fields winning: release defaults in `config/deployment.json`, the website's custom Git settings (`PATCH /sourcegraph/api/admin/settings/code_source` with `{revision, values:{name, host, username}}`), then the startup file named by `SOURCEGRAPH_CONFIG_FILE`:
+
+```json
+{"code_sources": {"git": {"name": "Gitea", "host": "https://git.example.com", "username": "oauth2", "token_env": "SOURCEGRAPH_CUSTOM_GIT_TOKEN"}}}
+```
+
+- The file can only override existing ids. Hosts must be HTTPS origins without a path. `token_env` names an environment variable; never put a token in the file.
+- Fields set by the file are read-only on the website (`409 CODE_SOURCE_LOCKED`).
+- Registration pins the source host to the repository as `code_host`; later configuration changes never move existing repositories. Startup backfills a missing `code_host` and only logs when it differs from the current configuration. While any repository record uses the custom source, changing its host returns `409 CODE_SOURCE_IN_USE`.
+- Registering against a source without a host returns `409 CODE_SOURCE_NOT_CONFIGURED`.
+- Tokens are tried in this order: the creator's personal token, the global token, the environment token, then anonymous access for GitHub only.
 
 ## CLI
 

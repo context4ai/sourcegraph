@@ -84,7 +84,9 @@
     try {rows=await API.catalog();loaded=true;last=new Date().toISOString();$('#load-error').textContent='';render();loadDetails();}
     catch(e){$('#load-error').textContent=M.error(e);if(!loaded)$('#summary').textContent='';throw e;}
   }
-  function open(){if(!M.manage())return;$('#drawer').classList.remove('hidden');$('#drawer aside').setAttribute('role','dialog');$('#drawer aside').setAttribute('aria-modal','true');setTimeout(()=>$('#f-name').focus(),30);}
+  // Only sources with a configured host can register repositories; the editable source is preselected.
+  async function loadSources(){const select=$('#f-code-provider');try{const list=(await API.request('/v1/code-sources')).filter(s=>s.host);const chosen=select.value||(list.find(s=>s.editable)||list[0])?.id||'';select.innerHTML=list.map(s=>'<option value="'+esc(s.id)+'" title="'+esc(s.host)+'">'+esc(s.name)+'</option>').join('');select.value=list.some(s=>s.id===chosen)?chosen:(list[0]?.id||'');}catch(e){$('#form-error').textContent=M.error(e);}}
+  function open(){if(!M.manage())return;loadSources();$('#drawer').classList.remove('hidden');$('#drawer aside').setAttribute('role','dialog');$('#drawer aside').setAttribute('aria-modal','true');setTimeout(()=>$('#f-name').focus(),30);}
   function close(){if(submitting)return;$('#drawer').classList.add('hidden');const q=new URLSearchParams(location.search);q.delete('new');history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));$('#add').focus();}
   $('#add').onclick=()=>{const q=new URLSearchParams(location.search);q.set('new','1');history.replaceState(null,'',location.pathname+'?'+q);open();};
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=e=>{e.preventDefault();close();});

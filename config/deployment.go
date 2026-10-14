@@ -9,6 +9,17 @@ import (
 //go:embed deployment.json
 var raw []byte
 
+// CodeSource is a distribution default; token_env names an environment variable, never a token.
+type CodeSource struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Host      string `json:"host"`
+	Username  string `json:"username"`
+	TokenEnv  string `json:"token_env"`
+	Anonymous bool   `json:"anonymous"`
+	Editable  bool   `json:"editable"`
+}
+
 type Defaults struct {
 	SSO struct {
 		Issuer          string `json:"issuer"`
@@ -16,9 +27,10 @@ type Defaults struct {
 		ClientID        string `json:"client_id"`
 		RegistrationURL string `json:"registration_url"`
 	} `json:"sso"`
-	CodeHost    string `json:"code_host"`
-	ExampleRepo string `json:"example_repo"`
-	PublicURL   string `json:"public_url"`
+	CodeSources       []CodeSource      `json:"code_sources"`
+	CodeSourceAliases map[string]string `json:"code_source_aliases"`
+	ExampleRepo       string            `json:"example_repo"`
+	PublicURL         string            `json:"public_url"`
 }
 
 func Load() Defaults {

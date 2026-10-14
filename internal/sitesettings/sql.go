@@ -22,7 +22,7 @@ func (s *SQLStore) Ensure(ctx context.Context, r Record) error {
 	})
 }
 func (s *SQLStore) Load(ctx context.Context) ([]Record, error) {
-	rows, e := s.DB.List(ctx, "settings", "", 2)
+	rows, e := s.DB.List(ctx, "settings", "", 3)
 	if e != nil {
 		return nil, e
 	}

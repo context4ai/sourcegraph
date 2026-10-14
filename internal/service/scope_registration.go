@@ -14,7 +14,7 @@ import (
 // A logical version is ready only when every configured group has the same SHA.
 func projectRepository(r control.Repository) control.Repository {
 	if r.CodeProvider == "" {
-		r.CodeProvider = "github"
+		r.CodeProvider = defaultCodeProvider
 	}
 	r.IndexMode = r.EffectiveIndexMode()
 	r.Versions = append([]control.Version(nil), r.Versions...)

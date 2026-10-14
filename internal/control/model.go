@@ -110,8 +110,10 @@ type DiskUsage struct {
 }
 
 type Repository struct {
-	SyncChecks               map[string]SyncCheck  `json:"sync_checks,omitempty" bson:"sync_checks,omitempty"`
-	CodeProvider             string                `json:"code_provider,omitempty" bson:"code_provider,omitempty"`
+	SyncChecks   map[string]SyncCheck `json:"sync_checks,omitempty" bson:"sync_checks,omitempty"`
+	CodeProvider string               `json:"code_provider,omitempty" bson:"code_provider,omitempty"`
+	// CodeHost pins the HTTPS origin chosen at registration; later source changes affect new repositories only.
+	CodeHost                 string                `json:"code_host,omitempty" bson:"code_host,omitempty"`
 	CreatorID                string                `json:"created_by,omitempty" bson:"created_by,omitempty"`
 	LeaseRevision            int64                 `json:"-" bson:"lease_revision,omitempty"`
 	DiskUsage                *DiskUsage            `json:"disk_usage,omitempty" bson:"disk_usage,omitempty"`

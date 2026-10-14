@@ -1,7 +1,7 @@
-import {FULL_SHA,escapeHTML as esc,parseLocation,parseRange,lineFragment,codeURL,searchURL,sourceURL,fileGlob,parseRead,selectedText,readWindow} from './search-model.mjs';
+import {FULL_SHA,escapeHTML as esc,parseLocation,invalidLocation,latestURL,parseRange,lineFragment,codeURL,searchURL,sourceURL,fileGlob,parseRead,selectedText,readWindow} from './search-model.mjs';
 const A=window.App, API=window.API, t=A.t, $=s=>document.querySelector(s);
-const state={repo:'',revision:'',commit:'',path:'',branch:'',lines:new Map(),dirs:new Map(),open:new Set(['']),sel:null,anchor:null,eof:null,file:null,error:null,busy:false,seq:0,directory:false};
-let controller=new AbortController(),rangeWarning='';
+const state={repo:'',revision:'',commit:'',path:'',branch:'',requested:'',host:'',hostRepo:'',lines:new Map(),dirs:new Map(),open:new Set(['']),sel:null,anchor:null,eof:null,file:null,error:null,busy:false,seq:0,directory:false};
+let controller=new AbortController(),rangeWarning='',pinWarning='';
 function endpoint(kind){return '/v1/repo/'+kind+'?repo='+encodeURIComponent(state.repo);}
 function currentURL(range=state.sel){return codeURL(state.repo,state.commit||state.revision,state.path,range,state.branch);}
 function fixedURL(){if(!FULL_SHA.test(state.commit))throw new Error(t('版本还没确定，稍后再复制','The commit is not resolved yet'));return new URL(currentURL(),location.origin).href;}
@@ -23,9 +23,19 @@ function renderHead(){
  $('#meta').textContent=[detail,pin].filter(Boolean).join(' · ');
  $('#in-file').classList.toggle('hidden',!state.path||state.directory);$('#in-file').href=searchURL(state.repo,state.commit,{glob:[fileGlob(state.path)]},state.branch);
  $('#latest').classList.toggle('hidden',!state.branch);$('#latest').href=codeURL(state.repo,state.branch,state.path);
- $('#source-link').classList.toggle('hidden',!state.path||!state.commit);$('#source-link').href=sourceURL(state.repo,state.commit,state.path,state.sel);
+ $('#source-link').classList.toggle('hidden',!state.path||!state.commit||!state.host);$('#source-link').href=sourceURL(state.repo,state.commit,state.path,state.sel,state.host);
  $('#copy-path').disabled=!state.path;$('#copy-code').disabled=!lines.length||state.directory;
  $('#permalink').disabled=!state.commit;$('#cite').disabled=!state.commit;
+}
+// The source link uses the host recorded at registration, else the current host of the repository's source.
+function loadHost(repo){
+ if(state.hostRepo===repo)return;
+ state.hostRepo=repo;state.host='';
+ API.request('/v1/repo/availability?repo='+encodeURIComponent(repo)).then(async r=>{
+  let host=r.code_host||'';
+  if(!host){const sources=await API.request('/v1/code-sources');host=(sources.find(s=>s.id===r.code_provider)||{}).host||'';}
+  if(state.hostRepo!==repo)return;state.host=host;renderHead();
+ }).catch(()=>{});
 }
 function sortedLines(){return [...state.lines.values()].sort((a,b)=>a.number-b.number);}
 function syntax(text){
@@ -43,7 +53,7 @@ function findHTML(text,query){
 function renderSelection(){
  $('#sel').textContent=state.sel?t('已选 '+rangeText()+' · Shift + 点击行号扩展','selected '+rangeText()+' · shift-click to extend'):t('点击行号选择，引用会带上行号','click a line number to select; citations include it');
  $('#copy-code').textContent=state.sel?t('复制所选代码','Copy selected code'):t('复制已加载代码','Copy loaded code');
- $('#source-link').href=sourceURL(state.repo,state.commit,state.path,state.sel);
+ $('#source-link').href=sourceURL(state.repo,state.commit,state.path,state.sel,state.host);
 }
 function renderBlob(){
  if(state.directory){renderDirectory();return;}
@@ -69,12 +79,25 @@ function renderExtent(){
  $('#read-extent').textContent=state.directory||!lines.length?'':!canBelow?t('已读到文件末尾','end of file'):t('已读到第 '+max+' 行','read up to line '+max);
 }
 function error(error){
- state.error=error;const messages={BINARY_FILE:t('这是二进制文件，不能预览','This is a binary file and cannot be previewed'),UNSUPPORTED_TEXT_ENCODING:t('文件不是 UTF-8 文本，不能预览','The file is not UTF-8 text and cannot be previewed'),FILE_LINE_TOO_LARGE:t('有一行太长，请在 代码托管站 查看','A line is too long. View it on the code host'),READ_SCAN_LIMIT:t('这几行离文件开头太远，请在 代码托管站 查看','These lines are too far into the file. View them on the code host'),LINE_RANGE_NOT_SATISFIABLE:t('文件没有这么多行','The file does not have that many lines'),FILE_NOT_FOUND:t('这个提交里没有这个文件','This file does not exist at this commit'),REVISION_NOT_ELIGIBLE:t('这个版本不在保留范围内','This version is outside the retention window')};
+ state.error=error;const messages={BINARY_FILE:t('这是二进制文件，不能预览','This is a binary file and cannot be previewed'),UNSUPPORTED_TEXT_ENCODING:t('文件不是 UTF-8 文本，不能预览','The file is not UTF-8 text and cannot be previewed'),FILE_LINE_TOO_LARGE:t('有一行太长，请在 代码托管站 查看','A line is too long. View it on the code host'),READ_SCAN_LIMIT:t('这几行离文件开头太远，请在 代码托管站 查看','These lines are too far into the file. View them on the code host'),LINE_RANGE_NOT_SATISFIABLE:t('文件没有这么多行','The file does not have that many lines'),FILE_NOT_FOUND:t('这个提交里没有这个文件','This file does not exist at this commit'),REVISION_NOT_ELIGIBLE:t('这个版本不在保留范围内','This version is outside the retention window'),REVISION_NOT_FOUND:t('找不到这个提交','This commit was not found')};
+ const stale=FULL_SHA.test(state.revision)&&(error.code==='REVISION_NOT_ELIGIBLE'||error.code==='REVISION_NOT_FOUND');
  const known=messages[error.code], msg=known||error.message;
- $('#read-notice').className='mt-4 text-[13px] text-danger';$('#read-notice').innerHTML=esc(msg)+(known?'':'<span class="mt-1 block font-mono text-[11px]">'+esc(error.code||'REQUEST_FAILED')+(error.requestId?' · '+esc(error.requestId):'')+'</span>')+'<span class="mt-2 flex gap-3 text-muted">'+(error.status===401?'<button id="read-login" class="underline underline-offset-2 hover:text-ink">'+t('登录','Sign in')+'</button>':'')+(error.code==='LINE_RANGE_NOT_SATISFIABLE'?'<button id="read-start" class="underline underline-offset-2 hover:text-ink">'+t('从文件开头读','Read from the start')+'</button>':'<button id="read-retry" class="underline underline-offset-2 hover:text-ink">'+t('重试','Retry')+'</button>')+'</span>';
+ $('#read-notice').className='mt-4 text-[13px] text-danger';$('#read-notice').innerHTML=esc(msg)+(known?'':'<span class="mt-1 block font-mono text-[11px]">'+esc(error.code||'REQUEST_FAILED')+(error.requestId?' · '+esc(error.requestId):'')+'</span>')+'<span class="mt-2 flex gap-3 text-muted">'+(error.status===401?'<button id="read-login" class="underline underline-offset-2 hover:text-ink">'+t('登录','Sign in')+'</button>':'')+(error.code==='LINE_RANGE_NOT_SATISFIABLE'?'<button id="read-start" class="underline underline-offset-2 hover:text-ink">'+t('从文件开头读','Read from the start')+'</button>':stale?'<a id="read-latest" class="hidden underline underline-offset-2 hover:text-ink">'+t('在默认分支最新提交打开','Open at the latest default-branch commit')+'</a>':error.code==='INVALID_LOCATION'?'':'<button id="read-retry" class="underline underline-offset-2 hover:text-ink">'+t('重试','Retry')+'</button>')+'</span>';
  const login=$('#read-login');if(login)login.onclick=()=>A.requireLogin(location.pathname+location.search+location.hash);
  const first=$('#read-start');if(first)first.onclick=()=>{state.sel=null;state.anchor=null;history.replaceState(null,'',currentURL());loadLines(1,100);};
  const retry=$('#read-retry');if(retry)retry.onclick=()=>{if(!state.commit)init();else if(state.lastRange)loadLines(...state.lastRange);};
+ if(stale)offerLatest();
+}
+// Offer the latest default branch only when the same path still exists there; never substitute it silently.
+async function offerLatest(){
+ const seq=state.seq,requested=state.revision;
+ try{
+  const out=await API.request(endpoint('resolve'),{method:'POST',body:{},signal:controller.signal});
+  if(seq!==state.seq||!FULL_SHA.test(out.commit||'')||out.commit===requested)return;
+  if(state.path){try{await API.request(endpoint('read'),{method:'POST',body:{Revision:out.commit,Path:state.path,StartLine:1,EndLine:1},signal:controller.signal});}catch(e){if(!['NOT_A_FILE','BINARY_FILE','UNSUPPORTED_TEXT_ENCODING','FILE_LINE_TOO_LARGE'].includes(e.code))return;}}
+  const link=$('#read-latest');if(seq!==state.seq||!link)return;
+  link.href=latestURL(state.repo,state.path,state.sel,requested);link.classList.remove('hidden');
+ }catch(e){}
 }
 async function loadLines(start,end,scroll=false){
  if(state.busy)return;
@@ -85,14 +108,14 @@ async function loadLines(start,end,scroll=false){
   if(seq!==state.seq)return;
   const lines=parseRead(data,state.repo,state.commit,state.path);for(const line of lines)state.lines.set(line.number,line);
   state.file=data;state.error=null;if(data.HasMore===false)state.eof=data.ReturnedEndLine||0;
-  let note=rangeWarning;
+  let note=[rangeWarning,pinWarning].filter(Boolean).join(' ');
   if(data.IsLFSPointer)note=t('这是 Git LFS 指针，实际文件内容不在这里','This is a Git LFS pointer; the actual content is not stored here');
   else if(data.Kind==='symlink')note=t('这是符号链接，显示的是它指向的路径','This is a symlink; its target path is shown');
   if(state.sel&&state.eof!=null&&state.sel[1]>state.eof&&state.sel[0]<=state.eof){state.sel=[state.sel[0],state.eof];note=t('所选范围超出文件末尾，已选到最后一行','The selection ran past the end of the file; it now ends at the last line');history.replaceState(null,'',currentURL());}
   notify(note);renderHead();renderBlob();
   if(start<oldMin)window.scrollBy(0,$('#blob').getBoundingClientRect().height-oldHeight);
   if(scroll&&state.sel)document.getElementById('L'+state.sel[0])?.scrollIntoView({block:'center'});
- }catch(e){if(seq!==state.seq||e.name==='AbortError')return;if(e.code==='NOT_A_FILE'){state.directory=true;await loadDir(state.path);renderHead();renderDirectory();notify('');}else error(e);}finally{if(seq===state.seq){state.busy=false;renderExtent();}}
+ }catch(e){if(seq!==state.seq||e.name==='AbortError')return;if(e.code==='NOT_A_FILE'){state.directory=true;await loadDir(state.path);renderHead();renderDirectory();notify(pinWarning);}else error(e);}finally{if(seq===state.seq){state.busy=false;renderExtent();}}
 }
 function renderTree(){
  function draw(path,depth){const node=state.dirs.get(path);if(!node)return '';
@@ -137,17 +160,19 @@ document.addEventListener('langchange',()=>{renderHead();renderTree();renderBlob
 async function init(){
  state.seq++;controller.abort();controller=new AbortController();const seq=state.seq;
  try{
-  const p=parseLocation(location.search);Object.assign(state,{repo:p.repo,revision:p.revision,path:p.path,branch:p.branch});
-  if(!state.repo)throw new Error(t('需要 repo 参数，请先从仓库或搜索结果进入。','The repo parameter is required. Open a repository or a search result.'));
+  const p=parseLocation(location.search);Object.assign(state,{repo:p.repo,revision:p.revision,path:p.path,branch:p.branch,requested:p.requested});
+  if(!state.repo)throw invalidLocation(t('需要 repo 参数，请先从仓库或搜索结果进入。','The repo parameter is required. Open a repository or a search result.'));
   try{state.sel=parseRange(location.hash);state.anchor=state.sel?.[0]||null;}catch(e){rangeWarning=t('行号无效，从文件开头显示','Invalid line number; showing the start of the file');state.sel=null;}
   renderHead();notify('');await API.ready;
   if(FULL_SHA.test(state.revision))state.commit=state.revision;
   else{const out=await API.request(endpoint('resolve'),{method:'POST',body:state.revision?{Revision:state.revision}:{},signal:controller.signal});if(seq!==state.seq)return;if(!FULL_SHA.test(out.commit||''))throw new Error('Invalid resolved commit.');state.commit=out.commit;if(state.revision)state.branch=state.revision;}
+  pinWarning=state.requested&&state.requested!==state.commit?t('链接请求的提交 '+state.requested.slice(0,8)+' 已不可用，这里显示默认分支最新提交 '+state.commit.slice(0,8)+'，行号可能已经变化','The requested commit '+state.requested.slice(0,8)+' is no longer available. Showing the latest default-branch commit '+state.commit.slice(0,8)+'; line numbers may have changed'):'';
   history.replaceState(null,'',currentURL());renderHead();
+  loadHost(state.repo);
   const dirs=[''];const parts=state.path.split('/').filter(Boolean);for(let i=1;i<parts.length;i++){const path=parts.slice(0,i).join('/');dirs.push(path);state.open.add(path);}
   // Only direct ancestors are loaded, never the whole repository tree.
   const directoryRequests=dirs.map(dir=>loadDir(dir));
-  if(!state.path){state.directory=true;await Promise.all(directoryRequests);notify('');renderHead();renderDirectory();renderExtent();}
+  if(!state.path){state.directory=true;await Promise.all(directoryRequests);notify(pinWarning);renderHead();renderDirectory();renderExtent();}
   else{await loadLines(...readWindow(state.sel),true);await Promise.all(directoryRequests);}
  }catch(e){if(seq===state.seq&&e.name!=='AbortError')error(e);}
 }

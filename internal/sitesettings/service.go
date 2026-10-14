@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 )
 
@@ -29,6 +30,7 @@ func New(ctx context.Context, store Store, publicReadSeed bool) (*Service, error
 	records := []Record{
 		{Name: RepositoryDefaultsName, Revision: 1, Values: map[string]any{"retention_mode": "days", "retention_days": 30, "retention_count": 20}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 		{Name: AccessName, Revision: 1, Values: map[string]any{"public_read": publicReadSeed, "allow_registration": false, "registration_notice_zh": DefaultNoticeZH, "registration_notice_en": DefaultNoticeEN}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
+		{Name: CodeSourceName, Revision: 1, Values: map[string]any{"name": "", "host": "", "username": ""}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 	}
 	for _, r := range records {
 		if err := store.Ensure(ctx, r); err != nil {
@@ -50,6 +52,12 @@ func (s *Service) Snapshot() Snapshot {
 }
 func (s *Service) PublicRead() bool { return s.Snapshot().Access.Values.PublicRead }
 
+// CodeSourceOverride exposes the website layer of the editable code source.
+func (s *Service) CodeSourceOverride() codesources.Override {
+	v := s.Snapshot().CodeSource.Values
+	return codesources.Override{Name: v.Name, Host: v.Host, Username: v.Username}
+}
+
 // Refresh never replaces a valid cache with an error, corrupt record or older
 // revision. Query authorization reads the atomic cache without database I/O.
 func (s *Service) Refresh(ctx context.Context) error {
@@ -63,7 +71,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if old := s.current.Load(); old != nil && (next.RepositoryDefaults.Revision < old.RepositoryDefaults.Revision || next.Access.Revision < old.Access.Revision) {
+	if old := s.current.Load(); old != nil && (next.RepositoryDefaults.Revision < old.RepositoryDefaults.Revision || next.Access.Revision < old.Access.Revision || next.CodeSource.Revision < old.CodeSource.Revision) {
 		return errors.New("site settings revision moved backwards")
 	}
 	s.current.Store(&next)
@@ -110,12 +118,14 @@ func (s *Service) Update(ctx context.Context, section string, revision int64, da
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.Snapshot()
-	if next.Access.Revision == 0 || next.RepositoryDefaults.Revision == 0 {
+	if next.Access.Revision == 0 || next.RepositoryDefaults.Revision == 0 || next.CodeSource.Revision == 0 {
 		return Record{}, contract.Fail("SETTINGS_UNAVAILABLE", "Site settings are not initialized.", 503)
 	}
 	knownRevision := next.Access.Revision
 	if section == RepositoryDefaultsName {
 		knownRevision = next.RepositoryDefaults.Revision
+	} else if section == CodeSourceName {
+		knownRevision = next.CodeSource.Revision
 	}
 	if revision < knownRevision {
 		return Record{}, contract.Fail("SETTINGS_REVISION_CONFLICT", "Settings changed; reload this section before saving.", 412)
@@ -127,12 +137,7 @@ func (s *Service) Update(ctx context.Context, section string, revision int64, da
 		}
 		return Record{}, contract.Fail("SETTINGS_UNAVAILABLE", "Save result could not be confirmed. Reload settings before retrying.", 503)
 	}
-	meta := Metadata{r.Revision, r.UpdatedAt, r.UpdatedBy}
-	if section == RepositoryDefaultsName {
-		next.RepositoryDefaults = RepositorySection{Metadata: meta, Values: RepositoryDefaults{values["retention_mode"].(string), values["retention_days"].(int), values["retention_count"].(int)}}
-	} else {
-		next.Access = AccessSection{Metadata: meta, Values: Access{PublicRead: values["public_read"].(bool), AllowRegistration: values["allow_registration"].(bool), RegistrationNoticeZH: values["registration_notice_zh"].(string), RegistrationNoticeEN: values["registration_notice_en"].(string)}}
-	}
+	assign(&next, section, Metadata{r.Revision, r.UpdatedAt, r.UpdatedBy}, values)
 	s.current.Store(&next)
 	return r, nil
 }

@@ -9,16 +9,22 @@ export function validRepo(value) {
 export function validPath(value, allowEmpty = true) {
   return typeof value === 'string' && ((allowEmpty && value === '') || (!/[\\\x00-\x1f]/.test(value) && !value.startsWith('/') && value.split('/').every(p => p && p !== '.' && p !== '..')));
 }
+// Retrying cannot fix a malformed address, so pages offer no retry for this code.
+export function invalidLocation(message) {
+  return Object.assign(new Error(message), {code: 'INVALID_LOCATION'});
+}
+// A non-SHA `commit` (for example commit=main) is read as a branch or tag and resolved like `revision`;
+// `requested` carries the unavailable SHA a reader chose to replace with the latest default branch.
 export function parseLocation(search, hash = '') {
   const p = new URLSearchParams(search);
-  for (const key of ['repo', 'commit', 'revision', 'pattern', 'fixed_strings', 'ignore_case', 'path', 'branch']) if (p.getAll(key).length > 1) throw new Error('Duplicate URL parameter: ' + key);
-  if (p.has('commit') && p.has('revision')) throw new Error('Choose commit or revision, not both.');
-  const repo = p.get('repo') || '', commit = p.get('commit') || '', revision = commit || p.get('revision') || '', path = p.get('path') || '';
-  if (repo && !validRepo(repo)) throw new Error('Invalid repository.');
-  if (commit && !FULL_SHA.test(commit)) throw new Error('A fixed commit must be a full 40-character lowercase SHA.');
-  if (revision && (revision.length > 1024 || /[\x00-\x20\\]/.test(revision))) throw new Error('Invalid revision.');
-  if (!validPath(path)) throw new Error('Invalid repository path.');
-  return { repo, revision, path, search: {pattern: p.get('pattern') || '', fixedStrings: p.get('fixed_strings') === '1', ignoreCase: p.get('ignore_case') === '1', glob: p.getAll('glob').filter(Boolean)}, branch: p.get('branch') || '', range: parseRange(hash) };
+  for (const key of ['repo', 'commit', 'revision', 'pattern', 'fixed_strings', 'ignore_case', 'path', 'branch', 'requested']) if (p.getAll(key).length > 1) throw invalidLocation('Duplicate URL parameter: ' + key);
+  if (p.has('commit') && p.has('revision')) throw invalidLocation('Choose commit or revision, not both.');
+  const repo = p.get('repo') || '', revision = p.get('commit') || p.get('revision') || '', path = p.get('path') || '';
+  if (repo && !validRepo(repo)) throw invalidLocation('Invalid repository.');
+  if (revision && (revision.length > 1024 || /[\x00-\x20\\]/.test(revision))) throw invalidLocation('Invalid revision.');
+  if (!validPath(path)) throw invalidLocation('Invalid repository path.');
+  const requested = FULL_SHA.test(p.get('requested') || '') ? p.get('requested') : '';
+  return { repo, revision, path, search: {pattern: p.get('pattern') || '', fixedStrings: p.get('fixed_strings') === '1', ignoreCase: p.get('ignore_case') === '1', glob: p.getAll('glob').filter(Boolean)}, branch: p.get('branch') || '', requested, range: parseRange(hash) };
 }
 export function parseRange(hash) {
   if (!hash) return null;
@@ -35,6 +41,12 @@ export function codeURL(repo, commit, path = '', range = null, branch = '') {
   const p = new URLSearchParams({repo, path});
   if (FULL_SHA.test(commit)) p.set('commit', commit); else if (commit) p.set('revision', commit);
   if (branch && !FULL_SHA.test(branch)) p.set('branch', branch);
+  return '/sourcegraph/code?' + p + lineFragment(range);
+}
+// Opens the same path on the latest default-branch commit and records which SHA it replaces.
+export function latestURL(repo, path = '', range = null, requested = '') {
+  const p = new URLSearchParams({repo, path});
+  if (FULL_SHA.test(requested)) p.set('requested', requested);
   return '/sourcegraph/code?' + p + lineFragment(range);
 }
 // URL parameters use the API field names, so a link reads like the search request.
@@ -78,8 +90,10 @@ export function formatGlobs(globs) {
 }
 // Glob for exactly one repository file: anchored to the root, metacharacters escaped.
 export function fileGlob(path) { return '/' + path.replace(/[\\*?[\]{}!]/g, '\\$&'); }
-export function sourceURL(repo, commit, path, range) {
-  return ((globalThis.DEPLOYMENT?.code_host||'https://example.org').replace(/\/$/,'')+'/') + repo.split('/').map(encodeURIComponent).join('/') + '/blob/' + encodeURIComponent(commit) + '/' + path.split('/').map(encodeURIComponent).join('/') + lineFragment(range);
+// `host` is the repository's registered code host; without one there is no source link.
+export function sourceURL(repo, commit, path, range, host = '') {
+  if (!host) return '';
+  return (host.replace(/\/$/,'')+'/') + repo.split('/').map(encodeURIComponent).join('/') + '/blob/' + encodeURIComponent(commit) + '/' + path.split('/').map(encodeURIComponent).join('/') + lineFragment(range);
 }
 export function decodeBytes(value) {
   if (typeof value !== 'string') throw new Error('Invalid encoded search line.');

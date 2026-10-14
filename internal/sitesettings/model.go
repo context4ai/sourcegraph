@@ -8,12 +8,14 @@ import (
 	"errors"
 	"time"
 
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 )
 
 const (
 	RepositoryDefaultsName = "repository_defaults"
 	AccessName             = "access"
+	CodeSourceName         = "code_source"
 	Collection             = "sourcegraph_site_settings"
 	// JSON consumers must be able to round-trip revisions exactly.
 	maxRevision int64 = 9007199254740991
@@ -35,6 +37,13 @@ type Access struct {
 	RegistrationNoticeZH string `json:"registration_notice_zh"`
 	RegistrationNoticeEN string `json:"registration_notice_en"`
 }
+
+// CodeSource holds website values for the editable code source; empty fields inherit defaults.
+type CodeSource struct {
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Username string `json:"username"`
+}
 type Metadata struct {
 	Revision  int64     `json:"revision"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -48,9 +57,14 @@ type AccessSection struct {
 	Metadata
 	Values Access `json:"values"`
 }
+type CodeSourceSection struct {
+	Metadata
+	Values CodeSource `json:"values"`
+}
 type Snapshot struct {
 	RepositoryDefaults RepositorySection `json:"repository_defaults"`
 	Access             AccessSection     `json:"access"`
+	CodeSource         CodeSourceSection `json:"code_source"`
 }
 
 // Record is one CAS-protected section. Values contain validated JSON scalars only.
@@ -71,7 +85,7 @@ type Store interface {
 }
 
 func validSection(section string) bool {
-	return section == RepositoryDefaultsName || section == AccessName
+	return section == RepositoryDefaultsName || section == AccessName || section == CodeSourceName
 }
 
 func decodeValues(section string, data []byte) (map[string]any, error) {
@@ -99,8 +113,29 @@ func decodeValues(section string, data []byte) (map[string]any, error) {
 			input.RegistrationNoticeEN = DefaultNoticeEN
 		}
 		return map[string]any{"public_read": *input.PublicRead, "allow_registration": input.AllowRegistration, "registration_notice_zh": input.RegistrationNoticeZH, "registration_notice_en": input.RegistrationNoticeEN}, nil
+	case CodeSourceName:
+		var v CodeSource
+		if contract.DecodeObject(data, &v) != nil {
+			return nil, contract.Fail("INVALID_SETTINGS", "Provide name, host and username as strings.", 400)
+		}
+		if err := codesources.ValidateSettings(codesources.Override{Name: v.Name, Host: v.Host, Username: v.Username}); err != nil {
+			return nil, err
+		}
+		host, _ := codesources.NormalizeHost(v.Host)
+		return map[string]any{"name": v.Name, "host": host, "username": v.Username}, nil
 	default:
 		return nil, contract.Fail("SETTINGS_SECTION_NOT_FOUND", "Unknown settings section.", 404)
+	}
+}
+
+func assign(out *Snapshot, section string, meta Metadata, values map[string]any) {
+	switch section {
+	case RepositoryDefaultsName:
+		out.RepositoryDefaults = RepositorySection{Metadata: meta, Values: RepositoryDefaults{values["retention_mode"].(string), values["retention_days"].(int), values["retention_count"].(int)}}
+	case AccessName:
+		out.Access = AccessSection{Metadata: meta, Values: Access{PublicRead: values["public_read"].(bool), AllowRegistration: values["allow_registration"].(bool), RegistrationNoticeZH: values["registration_notice_zh"].(string), RegistrationNoticeEN: values["registration_notice_en"].(string)}}
+	case CodeSourceName:
+		out.CodeSource = CodeSourceSection{Metadata: meta, Values: CodeSource{values["name"].(string), values["host"].(string), values["username"].(string)}}
 	}
 }
 
@@ -120,14 +155,9 @@ func snapshot(records []Record) (Snapshot, error) {
 		if err != nil {
 			return out, errors.New("invalid persisted site settings")
 		}
-		meta := Metadata{r.Revision, r.UpdatedAt, r.UpdatedBy}
-		if r.Name == RepositoryDefaultsName {
-			out.RepositoryDefaults = RepositorySection{Metadata: meta, Values: RepositoryDefaults{values["retention_mode"].(string), values["retention_days"].(int), values["retention_count"].(int)}}
-		} else {
-			out.Access = AccessSection{Metadata: meta, Values: Access{PublicRead: values["public_read"].(bool), AllowRegistration: values["allow_registration"].(bool), RegistrationNoticeZH: values["registration_notice_zh"].(string), RegistrationNoticeEN: values["registration_notice_en"].(string)}}
-		}
+		assign(&out, r.Name, Metadata{r.Revision, r.UpdatedAt, r.UpdatedBy}, values)
 	}
-	if len(seen) != 2 {
+	if len(seen) != 3 {
 		return out, errors.New("site settings sections are incomplete")
 	}
 	return out, nil

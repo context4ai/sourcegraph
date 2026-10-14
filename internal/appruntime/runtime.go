@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/context4ai/sourcegraph/internal/asynclog"
+	"github.com/context4ai/sourcegraph/internal/codesources"
 )
 
 type Backend interface {
@@ -36,10 +37,18 @@ func Start(parent context.Context, backend Backend, settings Settings, logger *s
 	r := &Runtime{Logger: access, cancel: cancel, done: make(chan struct{})}
 	var workers sync.WaitGroup
 	start := func(run func()) { workers.Add(1); go func() { defer workers.Done(); run() }() }
+	if source, ok := settings.(interface{ CodeSourceOverride() codesources.Override }); ok {
+		codesources.UseSettings(source.CodeSourceOverride)
+	}
 	start(func() { backend.PublishObservations(ctx) })
 	start(func() { settings.RunRefresh(ctx, logger) })
 	if !options.DisableRepositoryWorkers {
 		start(func() { backend.Run(ctx) })
+		if pin, ok := backend.(interface {
+			PinCodeHosts(context.Context, *slog.Logger)
+		}); ok {
+			start(func() { pin.PinCodeHosts(ctx, logger) })
+		}
 	}
 	go func() { workers.Wait(); close(r.done) }()
 	return r

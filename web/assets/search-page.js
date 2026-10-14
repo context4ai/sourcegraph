@@ -124,7 +124,7 @@ function errorNotice(error) {
   const reasons={DEFAULT_BRANCH_UNDETERMINED:t('无法确定默认分支，请在仓库选择器里选一个分支。','The default branch is ambiguous. Pick a branch in the repository picker.'),DEFAULT_BRANCH_NOT_OBSERVED:t('默认分支还没有同步过。','The default branch has not been synchronized yet.'),AUTHENTICATION_REQUIRED:t('登录后才能搜索。','Sign in to search.'),REPOSITORY_DISABLED:t('这个仓库已停用，不能搜索。','This repository is disabled and cannot be searched.')};
   const login=error.status===401||code==='AUTHENTICATION_REQUIRED';
   msg='<p class="text-[14px] '+(code==='REPOSITORY_DISABLED'?'text-muted':'text-danger')+'">'+esc(reasons[code]||error.message)+'</p>'+(reasons[code]?'':'<p class="type-fig mt-1.5 break-all">'+esc(code)+(error.requestId?' · '+esc(error.requestId):'')+'</p>')+
-   '<div class="mt-3 flex flex-wrap items-center gap-3 text-[13px]">'+(login?button('search-login',t('登录','Sign in'),true):'')+(code==='DEFAULT_BRANCH_NOT_OBSERVED'?progress:'')+(login||code==='REPOSITORY_DISABLED'?'':'<button id="retry" class="text-muted underline underline-offset-2 hover:text-ink">'+t('重试','Retry')+'</button>')+'</div>';
+   '<div class="mt-3 flex flex-wrap items-center gap-3 text-[13px]">'+(login?button('search-login',t('登录','Sign in'),true):'')+(code==='DEFAULT_BRANCH_NOT_OBSERVED'?progress:'')+(login||code==='REPOSITORY_DISABLED'||code==='INVALID_LOCATION'?'':'<button id="retry" class="text-muted underline underline-offset-2 hover:text-ink">'+t('重试','Retry')+'</button>')+'</div>';
  }
  $('#notice').innerHTML=msg;
  const on=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};

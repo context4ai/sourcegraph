@@ -258,7 +258,9 @@ func (s *Service) sync(ctx context.Context, r control.Repository, j control.Job)
 	var defaultBranch string
 	e := s.withGitCredential(ctx, r, func(token string) error {
 		var err error
-		defaultBranch, err = git.FetchSelection(ctx, r.Name, gitstore.FetchOptions{DefaultBranch: r.Policy.DefaultBranch, CredentialHelper: s.Helper, Token: token, Branches: r.Policy.Branches, MinFreeBytes: s.MinFree})
+		o := s.fetchOptions(r, token)
+		o.DefaultBranch = r.Policy.DefaultBranch
+		defaultBranch, err = git.FetchSelection(ctx, r.Name, o)
 		return err
 	})
 	if e != nil {
@@ -339,7 +341,7 @@ func (s *Service) build(ctx context.Context, r control.Repository, j control.Job
 	started := time.Now()
 	if len(paths) > 0 {
 		if e = s.withGitCredential(ctx, r, func(token string) error {
-			return git.HydratePaths(ctx, r.Name, j.Commit, paths, gitstore.FetchOptions{CredentialHelper: s.Helper, Token: token, Branches: r.Policy.Branches, MinFreeBytes: s.MinFree})
+			return git.HydratePaths(ctx, r.Name, j.Commit, paths, s.fetchOptions(r, token))
 		}); e != nil {
 			return e
 		}
@@ -358,7 +360,9 @@ func (s *Service) build(ctx context.Context, r control.Repository, j control.Job
 		}
 		opts.Hydrate = git.BudgetLinkHydrator(ctx, r.Name, j.Commit, func(entries []gitstore.Entry) error {
 			return s.withGitCredential(ctx, r, func(token string) error {
-				return git.HydrateEntries(ctx, r.Name, j.Commit, entries, gitstore.FetchOptions{CredentialHelper: s.Helper, Token: token, Branches: r.Policy.Branches, MinFreeBytes: s.MinFree, CheckGrowth: guard})
+				o := s.fetchOptions(r, token)
+				o.CheckGrowth = guard
+				return git.HydrateEntries(ctx, r.Name, j.Commit, entries, o)
 			})
 		}, 256<<20)
 	}

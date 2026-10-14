@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/context4ai/sourcegraph/internal/appruntime"
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/config"
 	"github.com/context4ai/sourcegraph/internal/control"
 	"github.com/context4ai/sourcegraph/internal/httpserver"
@@ -50,6 +51,13 @@ func run() error {
 		return errors.New("data root must be absolute")
 	}
 	if e := os.MkdirAll(root, 0700); e != nil {
+		return e
+	}
+	overrides, e := codesources.LoadFile(os.Getenv("SOURCEGRAPH_CONFIG_FILE"))
+	if e != nil {
+		return e
+	}
+	if e = codesources.Configure(overrides); e != nil {
 		return e
 	}
 	var repos service.Store

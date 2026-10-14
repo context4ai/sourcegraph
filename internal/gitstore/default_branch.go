@@ -12,7 +12,7 @@ import (
 func (s *Store) discoverDefaultBranch(ctx context.Context, dir, remote string, options FetchOptions) (string, error) {
 	args := append(fetchConfiguration(options), "ls-remote", "--symref", remote, "HEAD", "refs/heads/master", "refs/heads/main")
 	command := s.command(ctx, dir, args...)
-	command.Env = append(command.Env, "SOURCEGRAPH_GIT_TOKEN="+options.Token)
+	command.Env = append(command.Env, credentialEnv(remote, options)...)
 	output := &limitWriter{limit: 64 << 10}
 	diagnostic := &prefixTrace{limit: 64 << 10}
 	command.Stdout, command.Stderr = output, diagnostic

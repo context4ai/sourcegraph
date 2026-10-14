@@ -5,7 +5,10 @@
     "client_id": "",
     "registration_url": "https://console.cloud.google.com/apis/credentials"
   },
-  "code_host": "https://github.com",
+  "code_sources": [
+    {"id": "github", "name": "GitHub", "host": "https://github.com", "username": "oauth2", "token_env": "SOURCEGRAPH_GIT_TOKEN", "anonymous": true},
+    {"id": "git", "name": "Git", "host": "", "username": "oauth2", "token_env": "SOURCEGRAPH_CUSTOM_GIT_TOKEN", "editable": true}
+  ],
   "example_repo": "context4ai/context",
   "public_url": "https://context4ai.org/sourcegraph",
   "source_repository": "https://github.com/context4ai/sourcegraph"

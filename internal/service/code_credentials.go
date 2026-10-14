@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 	"github.com/context4ai/sourcegraph/internal/control"
+	"github.com/context4ai/sourcegraph/internal/gitstore"
 	"time"
 )
 
@@ -23,7 +25,7 @@ func (s *Service) withGitCredential(ctx context.Context, r control.Repository, o
 		err = operation(candidate.Token)
 		var ce *contract.Error
 		authFailure := errors.As(err, &ce) && ce.Code == "GIT_AUTH_FAILED"
-		if candidate.Token != "" && (err == nil || authFailure) {
+		if err == nil || authFailure {
 			budget, stop := context.WithTimeout(ctx, 2*time.Second)
 			s.Credentials.Report(budget, candidate, authFailure)
 			stop()
@@ -36,4 +38,21 @@ func (s *Service) withGitCredential(ctx context.Context, r control.Repository, o
 		}
 	}
 	return err
+}
+
+// defaultCodeProvider is the provider of repositories registered before providers were recorded.
+const defaultCodeProvider = "github"
+
+// fetchOptions uses the host pinned at registration; the source still supplies username and anonymous access.
+func (s *Service) fetchOptions(r control.Repository, token string) gitstore.FetchOptions {
+	provider := r.CodeProvider
+	if provider == "" {
+		provider = defaultCodeProvider
+	}
+	source, _ := codesources.Resolve(provider)
+	host := r.CodeHost
+	if host == "" {
+		host = source.Host
+	}
+	return gitstore.FetchOptions{CredentialHelper: s.Helper, Token: token, Host: host, Username: source.Username, Anonymous: source.Anonymous, Branches: r.Policy.Branches, MinFreeBytes: s.MinFree}
 }

@@ -12,7 +12,7 @@ import (
 )
 
 // MongoStore shares the existing authenticated MongoDB client/database. There
-// are exactly two section IDs, protected by MongoDB's built-in unique _id index.
+// are exactly three section IDs, protected by MongoDB's built-in unique _id index.
 // No additional index or collection-wide migration is required.
 type MongoStore struct{ DB *mongo.Database }
 
@@ -37,7 +37,7 @@ func (m *MongoStore) Load(ctx context.Context) ([]Record, error) {
 	if m.DB == nil {
 		return nil, ErrUnavailable
 	}
-	cursor, err := m.collection().Find(ctx, bson.M{"_id": bson.M{"$in": []string{RepositoryDefaultsName, AccessName}}}, options.Find().SetLimit(2))
+	cursor, err := m.collection().Find(ctx, bson.M{"_id": bson.M{"$in": []string{RepositoryDefaultsName, AccessName, CodeSourceName}}}, options.Find().SetLimit(3))
 	if err != nil {
 		return nil, ErrUnavailable
 	}
