@@ -41,6 +41,8 @@ func sourceID(r control.Repository) string {
 // PinCodeHosts gives repositories registered before hosts were recorded their
 // current host, so later configuration changes cannot move them. Repositories
 // whose pinned host differs from the configured one keep the pinned host.
+// Repositories registered with a retired provider move to its target source;
+// their pinned host is kept, so fetches still reach the same remote.
 func (s *Service) PinCodeHosts(ctx context.Context, log *slog.Logger) {
 	if log == nil {
 		log = slog.Default()
@@ -51,17 +53,23 @@ func (s *Service) PinCodeHosts(ctx context.Context, log *slog.Logger) {
 			provider = defaultCodeProvider
 		}
 		source, _ := codesources.Resolve(provider)
-		if r.CodeHost == "" && source.Host != "" {
+		target, retired := codesources.AliasTarget(provider)
+		if (r.CodeHost == "" && source.Host != "") || retired {
 			s.mu.Lock()
 			_, err := control.Mutate(ctx, s.DB, r.Name, func(v *control.Repository) error {
 				if v.CodeHost == "" {
 					v.CodeHost = source.Host
 				}
+				if retired && v.CodeProvider == provider {
+					v.CodeProvider = target
+				}
 				return nil
 			})
 			s.mu.Unlock()
 			if err != nil && ctx.Err() == nil {
-				log.Warn("cannot record repository code host", "repo", r.Name, "error", err.Error())
+				log.Warn("cannot record repository code source", "repo", r.Name, "error", err.Error())
+			} else if err == nil && retired {
+				log.Info("repository moved from a retired code source", "repo", r.Name, "from", provider, "to", target)
 			}
 		} else if r.CodeHost != "" && r.CodeHost != source.Host {
 			log.Warn("code source host changed; repository keeps its registered host", "repo", r.Name, "registered", r.CodeHost, "configured", source.Host)

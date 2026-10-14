@@ -6,7 +6,7 @@
     "registration_url": "https://console.cloud.google.com/apis/credentials"
   },
   "code_sources": [
-    {"id": "github", "name": "GitHub", "host": "https://github.com", "username": "oauth2", "token_env": "SOURCEGRAPH_GIT_TOKEN", "anonymous": true},
+    {"id": "github", "name": "GitHub", "host": "https://github.com", "username": "oauth2", "token_env": "SOURCEGRAPH_GITHUB_TOKEN", "legacy_token_env": "SOURCEGRAPH_GIT_TOKEN", "anonymous": true},
     {"id": "git", "name": "Git", "host": "", "username": "oauth2", "token_env": "SOURCEGRAPH_CUSTOM_GIT_TOKEN", "editable": true}
   ],
   "example_repo": "context4ai/context",

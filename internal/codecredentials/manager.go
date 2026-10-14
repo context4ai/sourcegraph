@@ -226,6 +226,42 @@ func (m *Manager) Save(ctx context.Context, owner, kind string, in Input) (Statu
 	return status(r, token, time.Now()), nil
 }
 
+// Move re-encrypts a retired alias token under a visible source that has no token,
+// then clears the alias, so the plaintext never leaves the service.
+func (m *Manager) Move(ctx context.Context, owner, from, to string, revision int64) (Status, error) {
+	if !codesources.IsAlias(from) {
+		return Status{}, contract.Fail("INVALID_CREDENTIAL_MOVE", "Only a retired code source's token can be moved.", 400)
+	}
+	if _, ok := codesources.Lookup(to); !ok {
+		return Status{}, contract.Fail("INVALID_CREDENTIAL_KIND", "Unknown code source.", 400)
+	}
+	src, token, err := m.load(ctx, owner, from)
+	if err != nil {
+		return Status{}, err
+	}
+	if src.Revision != revision {
+		return Status{}, conflict
+	}
+	if token == "" {
+		return Status{}, contract.Fail("INVALID_CREDENTIAL_MOVE", "The retired code source has no token to move.", 400)
+	}
+	dst, existing, err := m.load(ctx, owner, to)
+	if err != nil {
+		return Status{}, err
+	}
+	if existing != "" {
+		return Status{}, contract.Fail("CREDENTIAL_TARGET_CONFIGURED", "The target code source already has a token; clear it first to replace it.", 409)
+	}
+	moved, err := m.Save(ctx, owner, to, Input{Revision: dst.Revision, Token: &token, Expires: src.Expires})
+	if err != nil {
+		return Status{}, err
+	}
+	if _, err = m.Save(ctx, owner, from, Input{Revision: src.Revision, Clear: true}); err != nil {
+		return Status{}, err
+	}
+	return moved, nil
+}
+
 // Credential providers are isolated; repository owners take precedence.
 func (m *Manager) Candidates(ctx context.Context, owner string, provider ...string) ([]Candidate, error) {
 	kind := defaultProvider

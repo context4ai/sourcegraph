@@ -56,8 +56,12 @@ Every instance has exactly two code sources, listed GitHub first:
 
 | id | Default host | Token variable | Anonymous | Editable on the website |
 | --- | --- | --- | --- | --- |
-| `github` | `https://github.com` | `SOURCEGRAPH_GIT_TOKEN` | yes | no |
+| `github` | `https://github.com` | `SOURCEGRAPH_GITHUB_TOKEN` | yes | no |
 | `git` | none | `SOURCEGRAPH_CUSTOM_GIT_TOKEN` | no | yes |
+
+`github` still reads the earlier variable `SOURCEGRAPH_GIT_TOKEN` while `SOURCEGRAPH_GITHUB_TOKEN` is unset (`legacy_token_env` in the release defaults); a startup file that sets `token_env` stops that fallback. Environment tokens apply only until a global token is saved.
+
+On the website, **System settings → Code sources** shows one card per source: the custom Git card holds its name, host and HTTPS username, and every card holds the global token and its optional expiry. **User settings → Code source tokens** holds personal tokens, which are tried first.
 
 Settings apply in this order, later non-empty fields winning: release defaults in `config/deployment.json`, the website's custom Git settings (`PATCH /sourcegraph/api/admin/settings/code_source` with `{revision, values:{name, host, username}}`), then the startup file named by `SOURCEGRAPH_CONFIG_FILE`:
 

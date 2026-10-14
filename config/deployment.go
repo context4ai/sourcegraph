@@ -10,14 +10,16 @@ import (
 var raw []byte
 
 // CodeSource is a distribution default; token_env names an environment variable, never a token.
+// legacy_token_env is an earlier variable name still read when token_env is unset.
 type CodeSource struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Host      string `json:"host"`
-	Username  string `json:"username"`
-	TokenEnv  string `json:"token_env"`
-	Anonymous bool   `json:"anonymous"`
-	Editable  bool   `json:"editable"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Host           string `json:"host"`
+	Username       string `json:"username"`
+	TokenEnv       string `json:"token_env"`
+	LegacyTokenEnv string `json:"legacy_token_env,omitempty"`
+	Anonymous      bool   `json:"anonymous"`
+	Editable       bool   `json:"editable"`
 }
 
 type Defaults struct {

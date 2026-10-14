@@ -56,6 +56,7 @@ func codeCredentials(w http.ResponseWriter, r *http.Request, m *codecredentials.
 		Token    *string    `json:"token,omitempty"`
 		Expires  *time.Time `json:"expires_at"`
 		Clear    bool       `json:"clear"`
+		MoveTo   string     `json:"move_to,omitempty"`
 	}
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 8192))
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -64,7 +65,16 @@ func codeCredentials(w http.ResponseWriter, r *http.Request, m *codecredentials.
 		writeError(w, "", 400, "INVALID_CREDENTIAL", "Invalid credential settings.")
 		return
 	}
-	out, err := m.Save(ctx, owner, input.Kind, codecredentials.Input{Revision: input.Revision, Token: input.Token, Expires: input.Expires, Clear: input.Clear})
+	var out codecredentials.Status
+	if input.MoveTo != "" {
+		if input.Token != nil || input.Clear || input.Expires != nil {
+			writeError(w, "", 400, "INVALID_CREDENTIAL_MOVE", "A move carries only kind, revision and move_to.")
+			return
+		}
+		out, err = m.Move(ctx, owner, input.Kind, input.MoveTo, input.Revision)
+	} else {
+		out, err = m.Save(ctx, owner, input.Kind, codecredentials.Input{Revision: input.Revision, Token: input.Token, Expires: input.Expires, Clear: input.Clear})
+	}
 	if err != nil {
 		credentialError(w, err)
 		return
