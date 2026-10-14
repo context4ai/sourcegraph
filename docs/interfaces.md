@@ -52,28 +52,7 @@ Repository registration, maintenance, statistics and site settings live under `/
 
 ### Code sources
 
-Every instance has exactly two code sources, listed GitHub first:
-
-| id | Default host | Token variable | Anonymous | Editable on the website |
-| --- | --- | --- | --- | --- |
-| `github` | `https://github.com` | `SOURCEGRAPH_GITHUB_TOKEN` | yes | no |
-| `git` | none | `SOURCEGRAPH_CUSTOM_GIT_TOKEN` | no | yes |
-
-`github` still reads the earlier variable `SOURCEGRAPH_GIT_TOKEN` while `SOURCEGRAPH_GITHUB_TOKEN` is unset (`legacy_token_env` in the release defaults); a startup file that sets `token_env` stops that fallback. Environment tokens apply only until a global token is saved.
-
-On the website, **System settings → Code sources** shows one card per source: the custom Git card holds its name, host and HTTPS username, and every card holds the global token and its optional expiry. **User settings → Code source tokens** holds personal tokens, which are tried first.
-
-Settings apply in this order, later non-empty fields winning: release defaults in `config/deployment.json`, the website's custom Git settings (`PATCH /sourcegraph/api/admin/settings/code_source` with `{revision, values:{name, host, username}}`), then the startup file named by `SOURCEGRAPH_CONFIG_FILE`:
-
-```json
-{"code_sources": {"git": {"name": "Gitea", "host": "https://git.example.com", "username": "oauth2", "token_env": "SOURCEGRAPH_CUSTOM_GIT_TOKEN"}}}
-```
-
-- The file can only override existing ids. Hosts must be HTTPS origins without a path. `token_env` names an environment variable; never put a token in the file.
-- Fields set by the file are read-only on the website (`409 CODE_SOURCE_LOCKED`).
-- Registration pins the source host to the repository as `code_host`; later configuration changes never move existing repositories. Startup backfills a missing `code_host` and only logs when it differs from the current configuration. While any repository record uses the custom source, changing its host returns `409 CODE_SOURCE_IN_USE`.
-- Registering against a source without a host returns `409 CODE_SOURCE_NOT_CONFIGURED`.
-- Tokens are tried in this order: the creator's personal token, the global token, the environment token, then anonymous access for GitHub only.
+Code sources, their settings and token order are described in [code sources and tokens](code-sources.md).
 
 ## CLI
 

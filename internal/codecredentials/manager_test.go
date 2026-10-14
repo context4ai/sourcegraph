@@ -68,17 +68,3 @@ func TestEnvironmentTokenFollowsSourceVariable(t *testing.T) {
 		t.Fatal("custom git must not reuse the GitHub variables")
 	}
 }
-
-func TestOnlyRetiredSourcesMove(t *testing.T) {
-	ctx := context.Background()
-	m := testManager(t)
-	token := "custom_git_token"
-	saved, err := m.Save(ctx, Global, "git", Input{Token: &token})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var ce *contract.Error
-	if _, err = m.Move(ctx, Global, "git", "github", saved.Revision); !errors.As(err, &ce) || ce.Code != "INVALID_CREDENTIAL_MOVE" {
-		t.Fatalf("visible source moved: %v", err)
-	}
-}

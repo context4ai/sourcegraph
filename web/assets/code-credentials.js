@@ -50,12 +50,10 @@
     +ACTIONS+'<button type="button" data-clear class="'+QUIET+'" '+(!v.configured?'disabled':'')+'>'+t('清除令牌','Clear token')+'</button><button type="submit" class="'+PRIMARY+'">'+t('保存','Save')+'</button></div></form>';
   }
   function retiredCard(kind){
-   const v=state[kind],targets=sources.filter(s=>!state[s.id]?.configured);
-   const options=targets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('');
-   return '<form data-retired="'+esc(kind)+'" class="field space-y-4 p-5 sm:p-6"><div><h3 class="text-[15px] font-medium">'+esc(kind)+t(' 令牌（已退役类型）',' token (retired type)')+'</h3><p class="mt-1 text-[13px] text-muted">'+t('这个类型已不能登记新仓库，原来登记的仓库已归入对应的代码源。令牌可以原样转存到一个还没有令牌的代码源，或直接清除。','This type can no longer register repositories; existing ones now belong to its replacement source. Move the token unchanged to a source without a token, or clear it.')+'</p></div>'
+   const v=state[kind];
+   return '<form data-retired="'+esc(kind)+'" class="field space-y-4 p-5 sm:p-6"><div><h3 class="text-[15px] font-medium">'+esc(kind)+t(' 令牌（已退役类型）',' token (retired type)')+'</h3><p class="mt-1 text-[13px] text-muted">'+t('这个类型已不能登记新仓库，原来登记的仓库已归入对应的代码源，这个令牌不再用于拉取，可以清除。','This type can no longer register repositories and existing ones now belong to its replacement source. The token is no longer used for fetching and can be cleared.')+'</p></div>'
     +'<p class="text-[13px] '+statusClass(v)+'">'+esc(tokenStatus(v))+'</p>'
-    +(targets.length?'<label class="block text-[14px]">'+t('转存到','Move to')+'<select name="target" class="'+INPUT+'">'+options+'</select></label>':'<p class="text-[13px] text-muted">'+t('所有代码源都已有令牌；如需改用这个令牌，先清除目标代码源的令牌。','Every source already has a token; clear the target source first to use this one.')+'</p>')
-    +ACTIONS+'<button type="button" data-clear class="'+QUIET+'">'+t('清除','Clear')+'</button>'+(targets.length?'<button type="submit" class="'+PRIMARY+'">'+t('转存','Move')+'</button>':'')+'</div></form>';
+    +ACTIONS+'<button type="button" data-clear class="'+QUIET+'">'+t('清除','Clear')+'</button></div></form>';
   }
   function render(){
    if(!state)return;
@@ -74,10 +72,7 @@
    }
    const clear=form.querySelector('[data-clear]');
    if(clear)clear.onclick=()=>{if(confirm(t('确认清除这个令牌？之后拉取将改用其他可用令牌或匿名访问。','Clear this token? Later fetches use other available tokens or anonymous access.')))run(()=>API.request(endpoint,{method:'PUT',body:{kind,revision:v.revision,clear:true,expires_at:null}}));};
-   if(form.dataset.retired){
-    form.onsubmit=e=>{e.preventDefault();run(()=>API.request(endpoint,{method:'PUT',body:{kind,revision:v.revision,move_to:form.elements.target.value}}));};
-    return;
-   }
+   if(form.dataset.retired)return;
    const expires=form.elements.expires;
    expires.value=localExpiry(v.expires_at);
    expires.addEventListener('click',()=>{try{expires.showPicker?.();}catch(_){/* Native keyboard editing remains available. */}});
