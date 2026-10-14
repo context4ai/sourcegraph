@@ -36,7 +36,7 @@ CI runs the same verification on pull requests and `main`; see `.github/workflow
 | `SOURCEGRAPH_LISTEN` | `0.0.0.0:8080` |
 | `SOURCEGRAPH_MIN_FREE_BYTES` | `1073741824`; index/fetch free-space floor |
 | `SOURCEGRAPH_SEED_DEMO` | Set `true` to register the two public example repositories |
-| `SOURCEGRAPH_GIT_TOKEN` | Optional GitHub token, used until a global GitHub token is saved |
+| `SOURCEGRAPH_GITHUB_TOKEN` | Optional GitHub token, used until a global GitHub token is saved; the earlier name `SOURCEGRAPH_GIT_TOKEN` is still read when this is unset |
 | `SOURCEGRAPH_CUSTOM_GIT_TOKEN` | Optional token for the custom Git source, used until a global one is saved |
 | `SOURCEGRAPH_CONFIG_FILE` | Optional JSON file that overrides code sources at startup; see [code sources](docs/interfaces.md#code-sources) |
 | `SOURCEGRAPH_CREDENTIAL_KEY` | Optional base64 32-byte key for stored code credentials; otherwise `code-credentials.key` is generated in the data root. Required, and identical, on all instances sharing a database |

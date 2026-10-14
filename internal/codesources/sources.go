@@ -34,6 +34,8 @@ type Source struct {
 	Editable  bool     `json:"editable"`
 	Locked    []string `json:"locked,omitempty"`
 	TokenEnv  string   `json:"-"`
+	// LegacyTokenEnv applies only to the release default token_env.
+	LegacyTokenEnv string `json:"-"`
 }
 
 var (
@@ -137,7 +139,7 @@ func Effective(ui Override) []Source {
 	defaults := deployment.Load().CodeSources
 	out := make([]Source, 0, len(defaults))
 	for _, d := range defaults {
-		s := Source{ID: d.ID, Name: d.Name, Host: d.Host, Username: d.Username, TokenEnv: d.TokenEnv, Anonymous: d.Anonymous, Editable: d.Editable}
+		s := Source{ID: d.ID, Name: d.Name, Host: d.Host, Username: d.Username, TokenEnv: d.TokenEnv, LegacyTokenEnv: d.LegacyTokenEnv, Anonymous: d.Anonymous, Editable: d.Editable}
 		f := overrides[d.ID]
 		if d.Editable {
 			if ui.Name != "" && f.Name == "" {
@@ -167,6 +169,7 @@ func Effective(ui Override) []Source {
 		}
 		if f.TokenEnv != "" {
 			s.TokenEnv = f.TokenEnv
+			s.LegacyTokenEnv = ""
 		}
 		if s.Username == "" {
 			s.Username = "oauth2"
@@ -217,10 +220,25 @@ func Kinds() []string {
 
 // EnvToken returns the deployment environment token of a visible slot.
 func EnvToken(kind string) string {
-	if s, ok := Lookup(kind); ok && s.TokenEnv != "" {
-		return os.Getenv(s.TokenEnv)
+	s, ok := Lookup(kind)
+	if !ok {
+		return ""
+	}
+	for _, name := range []string{s.TokenEnv, s.LegacyTokenEnv} {
+		if name == "" {
+			continue
+		}
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
 	}
 	return ""
+}
+
+// AliasTarget returns the visible slot a retired provider maps to.
+func AliasTarget(provider string) (string, bool) {
+	target, ok := deployment.Load().CodeSourceAliases[provider]
+	return target, ok
 }
 
 // AllowsAnonymous reports whether a provider may fetch public repositories without a token.
