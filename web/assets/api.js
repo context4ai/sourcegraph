@@ -23,7 +23,7 @@
     BRANCH_NOT_OBSERVED: ['此监听分支尚未同步，请查看仓库准备进度', 'This monitored branch has not been synchronized'],
     BRANCH_NOT_MONITORED: ['此分支不在监听范围内，请选择已登记分支', 'This branch is not monitored; choose a registered branch'],
     INVALID_REVISION: ['版本格式无效，请使用完整 SHA 或监听分支', 'Invalid revision; use a full SHA or a monitored branch'],
-    REVISION_NOT_ELIGIBLE: ["该提交不在当前保留范围内", "Commit is outside the retention policy"],
+    REVISION_NOT_ELIGIBLE: ["该仓库尚未观察到此提交；请核对仓库与完整 SHA，再检查监听、同步和保留范围", "Commit is not observed for this repository; verify the repository and full SHA, then check branches, synchronization and retention"],
     REVISION_NOT_FOUND: ["未找到指定提交或分支", "Commit or branch was not found"],
     REPOSITORY_STORAGE_MISSING: ["代码存放位置已变化，需要重新同步", "Storage location changed; synchronize again"],
     JOB_HISTORY_CLEARED: ["任务记录已清除，新操作请使用新的幂等键", "Task history was cleared; use a new idempotency key"],

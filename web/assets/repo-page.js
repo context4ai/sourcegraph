@@ -31,7 +31,7 @@
   function kindName(k){const x=KIND[k]||[k,k];return t(x[0],x[1]);}
   function jobRecoveredAt(j){return R.recoveredAt(repo,j);}
   function jobText(j){
-    if(!j)return '<span class="text-muted">'+t('暂无任务','No jobs yet')+'</span>';
+    if(!j)return '<span class="text-muted">'+t('暂无保留任务','No retained jobs')+'</span>';
     const k=KIND[j.kind]||[j.kind,j.kind], at=mono(esc(A.clock(j.updated_at||j.created_at)));
     if(jobRecoveredAt(j))return '<span class="text-muted">'+t('后续检查或任务已恢复 · ','Recovered by a later check or task · ')+esc(A.clock(jobRecoveredAt(j)))+'</span>';
     if(j.state==='failed')return '<span class="text-danger">'+t(k[0]+'失败',k[1]+' failed')+(j.error?' · '+esc(API.jobError(j)):'')+'</span>';
@@ -131,8 +131,10 @@
   function jobs(){
     const js=R.jobs(repo);
     const checks=Object.entries(repo.sync_checks||{}).map(([group,c])=>'<p class="text-[13px] text-muted">'+(group?esc(group)+' · ':'')+t('最近检查 ','Last checked ')+esc(A.clock(c.checked_at))+' · '+(c.error?esc(API.jobError({error:c.error})):c.no_changes?t('版本未变化，无需索引','No version changes; indexing skipped'):t('检查完成','Check completed'))+(c.unchanged_count>1?t(' · 连续 '+c.unchanged_count+' 次无变化',' · '+c.unchanged_count+' consecutive unchanged checks'):'')+'</p>').join('');
-    const summary=checks?'<div class="mb-8 space-y-2">'+checks+'</div>':'';
-    if(!js.length)return summary+ '<p class="text-[14px] text-muted">'+t('还没有任务','No jobs yet')+'</p>';
+    const failures=(repo.job_failures||[]).filter(f=>Date.now()-Date.parse(f.time)<7*86400000);
+    const history=failures.length?'<details class="mb-8 rounded-doc bg-sand p-4"><summary class="cursor-pointer text-[14px]">'+t('历史任务失败摘要（'+failures.length+' 条）','Historical task failures ('+failures.length+')')+'</summary><p class="mt-3 text-[13px] text-muted">'+t('保留最近 7 天，最多 128 条；独立于任务队列。历史失败不代表当前状态。','Last 7 days, up to 128 records; separate from the task queue. Historical failures do not describe current health.')+'</p><div class="mt-4 max-h-80 overflow-auto space-y-4">'+failures.map(f=>'<div class="text-[13px] break-all"><div>'+esc(M.time(f.time))+' · '+esc(f.kind)+' · '+esc(f.group||'')+'</div><div class="font-mono">'+esc(f.code)+' · '+esc(f.commit||'—')+'</div><div class="text-muted">'+esc(f.job_id)+t(' · 尝试 '+f.attempt+' 次',' · '+f.attempt+' attempts')+'</div></div>').join('')+'</div></details>':'';
+    const summary=(checks?'<div class="mb-8 space-y-2">'+checks+'</div>':'')+history;
+    if(!js.length)return summary+ '<p class="text-[14px] text-muted">'+t('暂无保留的任务。终态任务会自动清理；失败摘要另保留最近 7 天最多 128 条。','No retained jobs. Terminal jobs are automatically cleaned up; failure summaries retain the last 7 days, up to 128 records.')+'</p>';
     const live=repo.enabled&&!repo.deleted;
     const rest=js.length-jobLimit;
     return summary+'<div class="space-y-12">'+js.slice(0,jobLimit).map(j=>{

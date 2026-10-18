@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const A=window.App,API=window.API,t=A.t,esc=A.esc,$=s=>document.querySelector(s),endpoint='/api/admin/settings/query-errors';
-  let rows=[],next='',cursor='',previous=[],busy=false,sequence=0,detailSequence=0,controller,detailController,detail=null,clearing=false;
+  let dropped=0,rows=[],next='',cursor='',previous=[],busy=false,sequence=0,detailSequence=0,controller,detailController,detail=null,clearing=false;
   function message(e){return (e.message||t('读取失败','Failed to load'))+(e.code?' · '+e.code:'');}
   function gate(){
     const allowed=!!A.user()&&A.canManage();
@@ -10,8 +10,15 @@
     if(!allowed){controller?.abort();detailController?.abort();sequence++;detailSequence++;rows=[];detail=null;$('#log-rows').replaceChildren();$('#detail-body').replaceChildren();$('#error-drawer').close();$('#clear-logs-dialog').close();}
     return allowed;
   }
+  function batchText(e){
+    const b=window.QueryErrorModel.batch(e);
+    if(!b)return '';
+    const state=b.succeeded>0?t('部分成功','Partial success'):b.hasContent?t('部分内容已返回','Partial content returned'):t('批量请求未完成','Batch did not complete');
+    return state+t(' · 成功 '+b.succeeded+'/'+b.total+' 项，失败 '+b.failed+' 项',' · '+b.succeeded+'/'+b.total+' items succeeded, '+b.failed+' failed')+(b.unfinished?t('，未完成 '+b.unfinished+' 项',', '+b.unfinished+' unfinished'):'');
+  }
   function render(){
-    $('#log-rows').innerHTML=rows.map((e,i)=>'<tr class="row-hover align-top"><td class="py-4 pr-5 whitespace-nowrap"><button class="underline underline-offset-4" data-detail="'+i+'">'+esc(new Date(e.time).toLocaleString(A.lang()==='en'?'en-US':'zh-CN'))+'</button></td><td class="py-4 pr-5"><div class="font-mono">'+esc(e.operation)+' · '+esc(e.transport)+'</div><div class="mt-1 break-all text-muted">'+esc(e.repository)+'</div></td><td class="py-4 pr-5"><div class="font-mono text-danger">'+esc(e.code)+'</div><div class="mt-1 text-muted text-[12px]">'+t('历史失败 · 重试状态未知','Historical failure · retry status unknown')+'</div><div class="mt-1 break-words text-muted">'+esc(e.message)+'</div></td><td class="py-4 whitespace-nowrap">'+esc(e.duration_ms)+' ms</td></tr>').join('')||'<tr><td colspan="4" class="py-8 text-muted">'+t(busy?'正在读取…':'暂无已记录的查询失败',busy?'Loading…':'No recorded query failures')+'</td></tr>';
+    $('#summary').textContent=t('当前页 '+rows.length+' 次含失败的请求（批次按一次计）','This page: '+rows.length+' requests with failures (one record per batch)')+(dropped?t(' · 当前实例丢弃 '+dropped+' 条日志',' · Dropped on this instance: '+dropped):'');
+    $('#log-rows').innerHTML=rows.map((e,i)=>'<tr class="row-hover align-top"><td class="py-4 pr-5 whitespace-nowrap"><button class="underline underline-offset-4" data-detail="'+i+'">'+esc(new Date(e.time).toLocaleString(A.lang()==='en'?'en-US':'zh-CN'))+'</button></td><td class="py-4 pr-5"><div class="font-mono">'+esc(e.operation)+' · '+esc(e.transport)+'</div><div class="mt-1 break-all text-muted">'+esc(e.repository)+'</div></td><td class="py-4 pr-5"><div class="font-mono text-danger">'+esc(e.code)+'</div><div class="mt-1 text-muted text-[12px]">'+esc(batchText(e)||t('历史失败 · 重试状态未知','Historical failure · retry status unknown'))+'</div><div class="mt-1 break-words text-muted">'+esc(e.message)+'</div></td><td class="py-4 whitespace-nowrap">'+esc(e.duration_ms)+' ms</td></tr>').join('')||'<tr><td colspan="4" class="py-8 text-muted">'+t(busy?'正在读取…':'暂无已记录的查询失败',busy?'Loading…':'No recorded query failures')+'</td></tr>';
     $('#log-rows').querySelectorAll('tr').forEach((row,i)=>{if(rows[i]){row.style.cursor='pointer';row.onclick=()=>openDetail(rows[i].id);}});
     $('#previous-logs').disabled=busy||clearing||!previous.length;$('#next-logs').disabled=busy||clearing||!next;$('#refresh-logs').disabled=busy||clearing;$('#clear-logs').disabled=busy||clearing;$('#clear-logs-confirm').disabled=clearing;$('#clear-logs-cancel').disabled=clearing;
   }
@@ -20,14 +27,14 @@
     try{
       const out=await API.request(endpoint+(after?'?after='+encodeURIComponent(after):''),{signal:controller.signal});
       if(seq!==sequence)return;rows=out.items;next=out.next_cursor;cursor=after;previous=back;
-      $('#summary').textContent=t('当前页 '+rows.length+' 条','This page: '+rows.length+' records')+(out.dropped_current_instance?t(' · 当前实例丢弃 '+out.dropped_current_instance+' 条日志',' · Dropped on this instance: '+out.dropped_current_instance):'');
+      dropped=out.dropped_current_instance||0;
     }catch(e){if(seq!==sequence||e.name==='AbortError')return;$('#logs-error').textContent=message(e);if(e.status===401||e.status===403){await API.loadSession();gate();}if(e.code==='ERROR_LOG_LIST_CHANGED'){cursor='';previous=[];next='';rows=[];}}
     finally{if(seq===sequence){busy=false;render();}}
   }
   function renderDetail(){
     if(!detail)return;
     const labels={time:t('时间','Time'),operation:t('操作','Operation'),transport:t('协议','Transport'),repository:t('仓库','Repository'),request_id:'Request ID',id:t('日志 ID','Log ID'),instance:t('实例','Instance'),actor:t('调用身份','Actor'),duration_ms:t('耗时（ms）','Duration (ms)'),code:t('错误码','Error code'),message:t('原因','Reason')};
-    $('#detail-body').innerHTML='<p class="mb-6 text-[13px] text-muted">'+t('这是一次历史失败，不代表仓库当前不可查询。未关联后续请求，无法判断是否已重试成功。','This is a historical failure, not the current repository health. Later requests are not linked, so retry success is unknown.')+'</p><dl class="space-y-5">'+Object.entries(labels).map(([key,label])=>'<div><dt class="text-[13px] text-muted">'+esc(label)+'</dt><dd class="mt-1 break-all font-mono text-[13px]">'+esc(String(detail[key]??'—'))+'</dd></div>').join('')+'</dl><h3 class="mt-8 font-medium">'+t('请求上下文','Request context')+'</h3><pre id="detail-context" class="mt-3 whitespace-pre-wrap break-all rounded-doc bg-sand p-4 text-[12px]"></pre>'+(detail.context_truncated?'<p class="mt-2 text-muted">'+t('上下文过长，已截断。','Context exceeded the limit and was truncated.')+'</p>':'');
+    $('#detail-body').innerHTML='<p class="mb-6 text-[13px] text-muted">'+t('这是一次历史失败，不代表仓库当前不可查询。未关联后续请求，无法判断是否已重试成功。','This is a historical failure, not the current repository health. Later requests are not linked, so retry success is unknown.')+'</p>'+(batchText(detail)?'<p class="mb-6 text-[14px]">'+esc(batchText(detail))+'</p>':'')+'<dl class="space-y-5">'+Object.entries(labels).map(([key,label])=>'<div><dt class="text-[13px] text-muted">'+esc(label)+'</dt><dd class="mt-1 break-all font-mono text-[13px]">'+esc(String(detail[key]??'—'))+'</dd></div>').join('')+'</dl><h3 class="mt-8 font-medium">'+t('请求上下文','Request context')+'</h3><pre id="detail-context" class="mt-3 whitespace-pre-wrap break-all rounded-doc bg-sand p-4 text-[12px]"></pre>'+(detail.context_truncated?'<p class="mt-2 text-muted">'+t('上下文过长，已截断。','Context exceeded the limit and was truncated.')+'</p>':'');
     if(detail.query_fragment || detail.suggested_query || detail.suggestion_omitted){
       const recovery=document.createElement('section');
       recovery.className='mt-6 rounded-doc bg-sand p-4';

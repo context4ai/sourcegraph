@@ -141,6 +141,7 @@ type Repository struct {
 	Policy         Policy            `json:"policy" bson:"policy"`
 	Heads          map[string]string `json:"heads" bson:"heads"`
 	Versions       []Version         `json:"versions" bson:"versions"`
+	JobFailures    []JobFailure      `json:"job_failures,omitempty" bson:"job_failures,omitempty"`
 	Jobs           []Job             `json:"jobs" bson:"jobs"`
 	Receipts       []Receipt         `json:"-" bson:"receipts"`
 	Audit          []Audit           `json:"-" bson:"audit"`

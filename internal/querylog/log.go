@@ -18,23 +18,31 @@ import (
 
 const Limit = 1000
 
+type BatchSummary struct {
+	Total        int `json:"total" bson:"total"`
+	Succeeded    int `json:"succeeded" bson:"succeeded"`
+	Failed       int `json:"failed" bson:"failed"`
+	ContentItems int `json:"content_items" bson:"content_items"`
+}
+
 type Entry struct {
-	ID                string    `json:"id" bson:"id"`
-	Time              time.Time `json:"time" bson:"time"`
-	Instance          string    `json:"instance" bson:"instance"`
-	RequestID         string    `json:"request_id" bson:"request_id"`
-	Transport         string    `json:"transport" bson:"transport"`
-	Operation         string    `json:"operation" bson:"operation"`
-	Actor             string    `json:"actor" bson:"actor"`
-	Repository        string    `json:"repository" bson:"repository"`
-	DurationMS        int64     `json:"duration_ms" bson:"duration_ms"`
-	Code              string    `json:"code" bson:"code"`
-	Message           string    `json:"message" bson:"message"`
-	Context           string    `json:"context,omitempty" bson:"context"`
-	ContextTruncated  bool      `json:"context_truncated" bson:"context_truncated"`
-	QueryFragment     string    `json:"query_fragment,omitempty" bson:"query_fragment,omitempty"`
-	SuggestedQuery    string    `json:"suggested_query,omitempty" bson:"suggested_query,omitempty"`
-	SuggestionOmitted bool      `json:"suggestion_omitted,omitempty" bson:"suggestion_omitted,omitempty"`
+	Batch             *BatchSummary `json:"batch,omitempty" bson:"batch,omitempty"`
+	ID                string        `json:"id" bson:"id"`
+	Time              time.Time     `json:"time" bson:"time"`
+	Instance          string        `json:"instance" bson:"instance"`
+	RequestID         string        `json:"request_id" bson:"request_id"`
+	Transport         string        `json:"transport" bson:"transport"`
+	Operation         string        `json:"operation" bson:"operation"`
+	Actor             string        `json:"actor" bson:"actor"`
+	Repository        string        `json:"repository" bson:"repository"`
+	DurationMS        int64         `json:"duration_ms" bson:"duration_ms"`
+	Code              string        `json:"code" bson:"code"`
+	Message           string        `json:"message" bson:"message"`
+	Context           string        `json:"context,omitempty" bson:"context"`
+	ContextTruncated  bool          `json:"context_truncated" bson:"context_truncated"`
+	QueryFragment     string        `json:"query_fragment,omitempty" bson:"query_fragment,omitempty"`
+	SuggestedQuery    string        `json:"suggested_query,omitempty" bson:"suggested_query,omitempty"`
+	SuggestionOmitted bool          `json:"suggestion_omitted,omitempty" bson:"suggestion_omitted,omitempty"`
 }
 type Store interface {
 	Append(context.Context, []Entry) error
@@ -72,6 +80,12 @@ func New(store Store) *Log { return &Log{Store: store, queue: make(chan Entry, 2
 
 // Record does bounded CPU work and a nonblocking send. It never accesses storage.
 func (l *Log) Record(ctx context.Context, instance, actor, repo, op string, start time.Time, input any, err error) {
+	l.record(ctx, instance, actor, repo, op, start, input, err, nil)
+}
+func (l *Log) RecordBatch(ctx context.Context, instance, actor, repo string, start time.Time, input any, err error, batch BatchSummary) {
+	l.record(ctx, instance, actor, repo, "read_many", start, input, err, &batch)
+}
+func (l *Log) record(ctx context.Context, instance, actor, repo, op string, start time.Time, input any, err error, batch *BatchSummary) {
 	if l == nil || err == nil {
 		return
 	}
@@ -87,7 +101,7 @@ func (l *Log) Record(ctx context.Context, instance, actor, repo, op string, star
 	raw, _ := json.Marshal(input)
 	details := clean(string(raw), 4096)
 	m, _ := ctx.Value(metadataKey{}).(metadata)
-	entry := Entry{ID: control.NewID(), Time: time.Now().UTC(), Instance: clean(instance, 128), RequestID: clean(m.ID, 128), Transport: clean(m.Transport, 16), Actor: clean(actor, 256), Repository: clean(repo, 512), Operation: op, DurationMS: time.Since(start).Milliseconds(), Code: clean(code, 128), Message: clean(message, 512), Context: details, ContextTruncated: len(raw) > 4096}
+	entry := Entry{Batch: batch, ID: control.NewID(), Time: time.Now().UTC(), Instance: clean(instance, 128), RequestID: clean(m.ID, 128), Transport: clean(m.Transport, 16), Actor: clean(actor, 256), Repository: clean(repo, 512), Operation: op, DurationMS: time.Since(start).Milliseconds(), Code: clean(code, 128), Message: clean(message, 512), Context: details, ContextTruncated: len(raw) > 4096}
 	if ce != nil {
 		entry.QueryFragment = clean(ce.QueryFragment, 512)
 		// A changed or truncated suggestion is not executable recovery guidance.

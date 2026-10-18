@@ -39,7 +39,7 @@ func recoveryMessage(code, message string, canPrepare bool) string {
 	case "DEFAULT_BRANCH_NOT_OBSERVED", "BRANCH_NOT_OBSERVED":
 		description = "The requested/default monitored branch has no synchronized head. No alternate version was selected."
 	case "REVISION_NOT_ELIGIBLE":
-		description = "The requested revision is outside the currently observed retention scope. Keep the requested baseline; do not substitute another revision."
+		description = "The requested revision is not in this repository's currently observed versions. Verify the repository and original full SHA together, then check monitored branches, synchronization and retention. Keep the requested baseline; do not substitute another revision."
 	default:
 		return message
 	}

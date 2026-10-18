@@ -49,3 +49,11 @@ sqlite3 /data/sourcegraph.db '.backup /data/sourcegraph-backup.db'
 Copy the resulting backup and key/config files to protected external storage. Indexes and bare Git repositories can be rebuilt, but identities, settings, credentials and their encryption key cannot be reconstructed from Git. For PostgreSQL use `pg_dump`; for MongoDB use an appropriate replica-set/Atlas backup.
 
 To restore, stop the Machine, restore database and matching key/config, then start one Machine and verify administrator access, repository metadata and index recovery. Image rollback and database restoration are separate operations; retain a known-good image and take a backup before schema changes.
+
+## Task and query diagnostics
+
+Terminal queue history retains its existing 24-hour/count limits. A separate `job_failures` field retains failure summaries for 7 days, up to 128 per repository (oldest entries are evicted at capacity). It stores task ID, kind, group, commit, error code, attempts, completion time and duration, without raw process errors, credentials or lease state. It does not consume queue/idempotency capacity or affect scheduling. Administrator failure-history cleanup removes summaries through the same cutoff. Previously deleted history cannot be reconstructed. These optional BSON fields work with SQLite, PostgreSQL and MongoDB without a schema migration.
+
+After durable task completion, structured `repository_task_completed` logs include repository/task identity, state and error code, never raw preparation errors. Unchanged successful automatic scans are omitted. Queue history and summaries describe historical events, not current readiness.
+
+Admin query logs include optional `batch` counters (`total`, `succeeded`, `failed`, `content_items`) independently of truncated request context. One log represents one request with failures. An empty File is successful; an item with both partial File and Error counts as failed with returned content. Unfinished items equal total minus succeeded and failed. Older records without counters remain unknown. Query-log retention is unchanged.

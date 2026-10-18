@@ -82,3 +82,11 @@ Personal API keys are created from a signed-in user's settings; prepare permissi
 ## Unsupported Git paths
 
 Indexing and directory enumeration skip Git filenames that cannot be addressed by the path API: invalid UTF-8, control characters, backslashes, paths over 4096 bytes, or noncanonical relative paths. Names are never rewritten, and other files remain available. Search reports `Meta.Coverage.UnsupportedPathsSkipped: true` for affected new indexes, including an MCP text warning; directory results use the same flag for excluded entries. An absent flag on an older index does not prove full coverage. Direct reads still validate paths. Diff still returns an error for unrepresentable changed paths rather than silently reporting no changes.
+
+## Source identity and recovery
+
+Carry repository, original full SHA and path together. Do not reconstruct SHAs or reuse them across repositories. Group `read_many` calls by `(repo, revision)` and use paths returned by search/list. `end_line` is an inclusive absolute line number, not a count.
+
+`REVISION_NOT_ELIGIBLE` means the revision is absent from this repository's currently observed versions. Verify the repository/SHA pair, monitored branches, synchronization and retention before assuming expiry; never substitute another baseline.
+
+HTTP availability includes bounded historical `job_failures` summaries; see [diagnostic retention](deployment.md#task-and-query-diagnostics). MCP availability with a specific `job_id` returns `job_failure` and `job_lookup.state=archived_failure` when the live task was pruned but its failure summary remains. It is historical evidence, not current readiness or a runnable task. Missing history does not imply success.
