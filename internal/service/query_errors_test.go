@@ -36,3 +36,24 @@ func TestQueryFailuresShareLog(t *testing.T) {
 		}
 	}
 }
+
+func TestReadManyDiagnosticsPreservePartialSuccess(t *testing.T) {
+	s, _, _, _ := readManyFixture(t, map[string]string{"ok.txt": "hello\n", "empty.txt": ""})
+	store := &querylog.FileStore{Path: filepath.Join(t.TempDir(), "errors.json")}
+	s.QueryLogs = querylog.New(store)
+	result, err := s.ReadMany(context.Background(), "org/repo", "main", []contract.ReadItemRequest{{Path: "ok.txt", StartLine: 1, EndLine: 2}, {Path: "missing.txt", StartLine: 1, EndLine: 2}, {Path: "empty.txt", StartLine: 1, EndLine: 2}})
+	if err != nil || len(result.Items) != 3 || result.Items[0].File == nil || result.Items[1].Error == nil || result.Items[2].File == nil {
+		t.Fatalf("partial results changed: %+v %v", result, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	s.QueryLogs.Run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	rows, err := store.Read(context.Background())
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("log: %+v %v", rows, err)
+	}
+	b := rows[0].Batch
+	if b == nil || b.Total != 3 || b.Succeeded != 2 || b.Failed != 1 || b.ContentItems != 2 {
+		t.Fatalf("incorrect batch counts: %+v", b)
+	}
+}

@@ -130,6 +130,13 @@ func compactAvailability(r control.Repository, jobID string) map[string]any {
 	}
 	out["jobs"] = selected
 	if jobID != "" && len(selected) == 0 {
+		for _, f := range r.JobFailures {
+			if f.ID == jobID {
+				out["job_failure"] = f
+				out["job_lookup"] = map[string]string{"job_id": jobID, "state": "archived_failure", "message": "The live task was pruned; this is its retained historical failure summary, not current readiness."}
+				return out
+			}
+		}
 		out["job_lookup"] = map[string]string{"job_id": jobID, "state": "not_found", "message": "Job is not retained; this does not mean it succeeded. Inspect version readiness."}
 	}
 	if jobID == "" {

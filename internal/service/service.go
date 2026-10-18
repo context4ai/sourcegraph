@@ -340,7 +340,7 @@ func eligible(r control.Repository, revision string) (control.Version, error) {
 	if prepareSHA.MatchString(revision) {
 		v, ok := r.Version(revision)
 		if !ok {
-			return v, contract.Fail("REVISION_NOT_ELIGIBLE", "The full commit SHA is outside the observed retention window; retain this baseline and use an independently authorized Git source if needed.", 404)
+			return v, contract.Fail("REVISION_NOT_ELIGIBLE", "This SHA is not in this repository's currently observed versions. Verify the repository and original full SHA together, then check monitored branches, synchronization and retention. Do not guess or substitute another commit.", 404)
 		}
 		return v, nil
 	}

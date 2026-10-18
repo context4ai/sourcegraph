@@ -56,7 +56,7 @@ func TestBackendContract(t *testing.T) {
 				auth = &sso.SQLStore{DB: db}
 				settings = &sitesettings.SQLStore{DB: db}
 			}
-			r := control.Repository{ID: control.ID("context4ai/context"), Name: "context4ai/context", Revision: 1}
+			r := control.Repository{ID: control.ID("context4ai/context"), Name: "context4ai/context", Revision: 1, JobFailures: []control.JobFailure{{ID: "failed-task", Code: "INDEX_FAILED", Attempt: 2}}}
 			if e := repos.Create(ctx, r); e != nil {
 				t.Fatal(e)
 			}
@@ -70,7 +70,7 @@ func TestBackendContract(t *testing.T) {
 				t.Fatal("stale lease accepted")
 			}
 			got, e := repos.Get(ctx, r.Name)
-			if e != nil || got.LeaseRevision != 1 {
+			if e != nil || got.LeaseRevision != 1 || len(got.JobFailures) != 1 || got.JobFailures[0].Code != "INDEX_FAILED" {
 				t.Fatal(got, e)
 			}
 			a, e := repos.NextGeneration(ctx)

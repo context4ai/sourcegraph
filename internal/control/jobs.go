@@ -102,6 +102,7 @@ func (r *Repository) Complete(job Job, code string, now time.Time) error {
 // Prune only terminal jobs whose receipts expired. Active work and tombstones
 // do not rely on TTL and cannot disappear while a worker is executing.
 func (r *Repository) Prune(now time.Time) {
+	r.retainJobFailures(now)
 	receipts := r.Receipts[:0]
 	protected := map[string]bool{}
 	for _, v := range r.Receipts {

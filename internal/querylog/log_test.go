@@ -174,3 +174,21 @@ func TestClearPersistsAndRejectsDelayedEntries(t *testing.T) {
 		t.Fatal("canceled clear removed records")
 	}
 }
+
+func TestBatchCountersSurviveTruncatedContextAndStorage(t *testing.T) {
+	l := New(nil)
+	want := BatchSummary{Total: 10, Succeeded: 9, Failed: 1, ContentItems: 9}
+	l.RecordBatch(context.Background(), "instance", "actor", "org/repo", time.Now(), strings.Repeat("x", 5000), contract.Fail("FILE_NOT_FOUND", "missing", 404), want)
+	entry := <-l.queue
+	if !entry.ContextTruncated || entry.Batch == nil || *entry.Batch != want {
+		t.Fatal("counts depend on truncated context")
+	}
+	raw, err := bson.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Entry
+	if err = bson.Unmarshal(raw, &decoded); err != nil || decoded.Batch == nil || *decoded.Batch != want {
+		t.Fatalf("storage roundtrip: %+v %v", decoded, err)
+	}
+}

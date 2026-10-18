@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/context4ai/sourcegraph/internal/identity"
+	"github.com/context4ai/sourcegraph/internal/querylog"
 	"time"
 
 	"github.com/context4ai/sourcegraph/internal/contract"
@@ -62,8 +64,16 @@ func (s *Service) ReadMany(ctx context.Context, name, revision string, requests 
 		s.metrics.Observe(name, "read_many", started, failed || err != nil)
 		problem := err
 		issues := []map[string]any{}
+		batch := querylog.BatchSummary{Total: len(requests)}
 		for i, item := range out.Items {
+			if item.File != nil {
+				batch.ContentItems++
+			}
+			if item.Error == nil && item.File != nil {
+				batch.Succeeded++
+			}
 			if item.Error != nil {
+				batch.Failed++
 				item.Error.Message = fmt.Sprintf("Item %d: %s", i+1, item.Error.Message)
 				issues = append(issues, map[string]any{"item": i, "item_number": i + 1, "code": item.Error.Code, "message": item.Error.Message})
 				if problem == nil {
@@ -71,7 +81,7 @@ func (s *Service) ReadMany(ctx context.Context, name, revision string, requests 
 				}
 			}
 		}
-		s.logQuery(ctx, name, "read_many", started, map[string]any{"revision": revision, "resolved_commit": out.Commit, "items": requests, "failures": issues}, problem)
+		s.QueryLogs.RecordBatch(ctx, s.boot, identity.Actor(ctx), name, started, map[string]any{"revision": revision, "resolved_commit": out.Commit, "items": requests, "failures": issues}, problem, batch)
 	}()
 	out = ReadManyResult{Repository: name, Items: []ReadManyItem{}}
 	defer func() {

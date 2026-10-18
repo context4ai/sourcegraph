@@ -13,6 +13,13 @@ import (
 // Projection is read-only: physical generations always live in their own scope.
 // A logical version is ready only when every configured group has the same SHA.
 func projectRepository(r control.Repository) control.Repository {
+	failures := make([]control.JobFailure, 0, len(r.JobFailures))
+	for _, f := range r.JobFailures {
+		if time.Since(f.Time) < control.JobFailureRetention {
+			failures = append(failures, f)
+		}
+	}
+	r.JobFailures = failures
 	if r.CodeProvider == "" {
 		r.CodeProvider = defaultCodeProvider
 	}

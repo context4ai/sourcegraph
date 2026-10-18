@@ -11,3 +11,5 @@ function check(dir) {
 }
 check('web');
 console.log('Website scripts and production-only dependencies checked.');
+
+for (const file of readdirSync('scripts').filter(n=>n.endsWith('.test.mjs'))) execFileSync(process.execPath,['--test',join('scripts',file)],{stdio:'inherit'});

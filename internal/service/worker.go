@@ -219,16 +219,24 @@ func (s *Service) executeClaimed(parent context.Context, name string, j control.
 			code = "PREPARATION_TIMEOUT"
 		}
 	}
+	var completed control.Job
 	finishErr := retryJobCompletion(finish, func(attempt context.Context) error {
 		_, err := control.Mutate(attempt, s.DB, name, func(r *control.Repository) error {
 			for _, existing := range r.Jobs {
 				if existing.ID == j.ID && existing.Owner == j.Owner && existing.Fence == j.Fence && (existing.State == "succeeded" || existing.State == "failed") {
+					completed = existing
 					return errCompletionRecorded
 				}
 			}
 			now := time.Now().UTC()
 			if err := r.Complete(j, code, now); err != nil {
 				return err
+			}
+			for _, terminal := range r.Jobs {
+				if terminal.ID == j.ID {
+					completed = terminal
+					break
+				}
 			}
 			if code == "" {
 				r.DiskUsagePending = true
@@ -244,6 +252,8 @@ func (s *Service) executeClaimed(parent context.Context, name string, j control.
 	})
 	if finishErr != nil {
 		logJobWriteFailure(name, j.ID, finishErr)
+	} else {
+		logJobCompletion(name, completed)
 	}
 	if code == "" && finishErr == nil {
 		s.wakeDiskUsage()
