@@ -357,7 +357,11 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 					if e != nil {
 						err = contract.Fail("PRECONDITION_REQUIRED", "If-Match revision is required.", 428)
 					} else {
-						result, err = s.Update(r.Context(), repo, q, rev)
+						var row control.Repository
+						row, err = s.Update(r.Context(), repo, q, rev)
+						// The website replaces its repository with this response; keep the
+						// caller's permission and people so a manager can keep editing.
+						result = viewRepository(r.Context(), row, browserAuth)
 					}
 				}
 			} else {

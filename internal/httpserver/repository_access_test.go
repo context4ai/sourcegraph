@@ -257,6 +257,18 @@ func TestOrdinaryUsersRegisterAndManageTheirRepositories(t *testing.T) {
 			t.Fatalf("manager gate refused %s: %v", who, body)
 		}
 	}
+	// Saving settings (and enabling or disabling) returns the same view, so the
+	// website keeps the manager's permission and the people after a save.
+	pv := `{"policy":{"branches":["main","dev"],"count":10},"enabled":true,"deleted":false}`
+	code, preview := s.call(alice, "POST", repo+"/preview"+q, pv)
+	if code != 200 {
+		t.Fatalf("manager preview: %d %v", code, preview)
+	}
+	patch := strings.TrimSuffix(pv, "}") + `,"preview":"` + preview["preview"].(string) + `"}`
+	code, saved := s.call(alice, "PATCH", repo+q, patch, "If-Match", `"`+itoa(int64(preview["revision"].(float64)))+`"`)
+	if code != 200 || saved["can_manage"] != true || saved["creator"] == nil || len(saved["managers"].([]any)) != 1 {
+		t.Fatalf("PATCH response must keep the repository view: %d %v", code, saved)
+	}
 	// Site-wide administration stays admin-only.
 	if code, _ := s.call(alice, "GET", "/sourcegraph/api/admin/v1/instances", ""); code != 403 {
 		t.Fatalf("instances for a repository manager: %d", code)
