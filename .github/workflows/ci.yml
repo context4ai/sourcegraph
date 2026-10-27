@@ -43,8 +43,8 @@ jobs:
           go-version-file: go.mod
       - name: Start MongoDB replica set
         run: |
-          # Pinned: the floating mongo:8 tag moved to an image that exits on start on hosted runners (2026-10-27).
-          docker run -d --name mongo-contract -p 27017:27017 mongo:8@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 --replSet rs0 --bind_ip_all
+          # Pinned to 8.0: the floating mongo:8 tag moved to 8.3.x, whose container exits on start on hosted runners (2026-10-27).
+          docker run -d --name mongo-contract -p 27017:27017 mongo:8.0 --replSet rs0 --bind_ip_all
           for i in $(seq 1 40); do
             if docker exec mongo-contract mongosh --quiet --eval 'db.adminCommand({ping:1})'; then break; fi
             sleep 2
