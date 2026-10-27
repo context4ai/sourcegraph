@@ -36,6 +36,9 @@ type Access struct {
 	AllowRegistration    bool   `json:"allow_registration"`
 	RegistrationNoticeZH string `json:"registration_notice_zh"`
 	RegistrationNoticeEN string `json:"registration_notice_en"`
+	// AllowUserRepositories lets any signed-in user register repositories and
+	// manage those they create. Absent in older records, which keeps it off.
+	AllowUserRepositories bool `json:"allow_user_repositories"`
 }
 
 // CodeSource holds website values for the editable code source; empty fields inherit defaults.
@@ -98,10 +101,11 @@ func decodeValues(section string, data []byte) (map[string]any, error) {
 		return map[string]any{"retention_mode": v.RetentionMode, "retention_days": v.RetentionDays, "retention_count": v.RetentionCount}, nil
 	case AccessName:
 		var input struct {
-			PublicRead           *bool  `json:"public_read"`
-			AllowRegistration    bool   `json:"allow_registration"`
-			RegistrationNoticeZH string `json:"registration_notice_zh"`
-			RegistrationNoticeEN string `json:"registration_notice_en"`
+			PublicRead            *bool  `json:"public_read"`
+			AllowRegistration     bool   `json:"allow_registration"`
+			RegistrationNoticeZH  string `json:"registration_notice_zh"`
+			RegistrationNoticeEN  string `json:"registration_notice_en"`
+			AllowUserRepositories bool   `json:"allow_user_repositories"`
 		}
 		if contract.DecodeObject(data, &input) != nil || input.PublicRead == nil || len(input.RegistrationNoticeZH) > 4096 || len(input.RegistrationNoticeEN) > 4096 {
 			return nil, contract.Fail("INVALID_SETTINGS", "Provide public_read, allow_registration and notices of at most 4096 bytes.", 400)
@@ -112,7 +116,7 @@ func decodeValues(section string, data []byte) (map[string]any, error) {
 		if input.RegistrationNoticeEN == "" {
 			input.RegistrationNoticeEN = DefaultNoticeEN
 		}
-		return map[string]any{"public_read": *input.PublicRead, "allow_registration": input.AllowRegistration, "registration_notice_zh": input.RegistrationNoticeZH, "registration_notice_en": input.RegistrationNoticeEN}, nil
+		return map[string]any{"public_read": *input.PublicRead, "allow_registration": input.AllowRegistration, "registration_notice_zh": input.RegistrationNoticeZH, "registration_notice_en": input.RegistrationNoticeEN, "allow_user_repositories": input.AllowUserRepositories}, nil
 	case CodeSourceName:
 		var v CodeSource
 		if contract.DecodeObject(data, &v) != nil {
@@ -133,7 +137,7 @@ func assign(out *Snapshot, section string, meta Metadata, values map[string]any)
 	case RepositoryDefaultsName:
 		out.RepositoryDefaults = RepositorySection{Metadata: meta, Values: RepositoryDefaults{values["retention_mode"].(string), values["retention_days"].(int), values["retention_count"].(int)}}
 	case AccessName:
-		out.Access = AccessSection{Metadata: meta, Values: Access{PublicRead: values["public_read"].(bool), AllowRegistration: values["allow_registration"].(bool), RegistrationNoticeZH: values["registration_notice_zh"].(string), RegistrationNoticeEN: values["registration_notice_en"].(string)}}
+		out.Access = AccessSection{Metadata: meta, Values: Access{PublicRead: values["public_read"].(bool), AllowRegistration: values["allow_registration"].(bool), RegistrationNoticeZH: values["registration_notice_zh"].(string), RegistrationNoticeEN: values["registration_notice_en"].(string), AllowUserRepositories: values["allow_user_repositories"].(bool)}}
 	case CodeSourceName:
 		out.CodeSource = CodeSourceSection{Metadata: meta, Values: CodeSource{values["name"].(string), values["host"].(string), values["username"].(string)}}
 	}

@@ -50,6 +50,21 @@ Repository routes take `?repo=owner/repository`.
 
 Repository registration, maintenance, statistics and site settings live under `/sourcegraph/api/admin/` and are used by the website's administration pages. Use the Connect page for current request examples.
 
+### Repository managers
+
+Site administrators manage every repository. The site setting **Let signed-in users register repositories** (`access.allow_user_repositories`) defaults to off; older settings without the field read as off, so upgrading does not change who can register. When it is on, any signed-in user can register a repository and becomes its only manager. Repositories registered before managers existed treat their creator as manager until the list is first edited; after that the stored list is used even when empty, leaving management to administrators. A repository has at most 50 managers.
+
+Repository managers and administrators can use every `?repo=` management route on that repository: edit settings, preview, prepare and add indexes, list commit options, clean up, cancel jobs, delete and purge, and add or remove managers, including themselves. Others receive `403 REPOSITORY_MANAGEMENT_DENIED`; registration while the setting is off returns `403 REGISTRATION_DISABLED`. Users, site settings, global code-source tokens and other site-wide routes stay administrator-only, and personal API keys keep their read-only scope.
+
+| Route | Purpose |
+| --- | --- |
+| `POST /sourcegraph/api/admin/v1/repo/managers?repo=` | Body `{"add":"<user id>"}` or `{"remove":"<user id>"}` with `If-Match: "<revision>"`; the added user must exist and be enabled (`404 USER_NOT_FOUND`) |
+| `GET /sourcegraph/auth/users/search?q=` | Signed-in users find up to 20 enabled users by name or email (`id/name/email/department`) to choose a manager |
+
+Repository details (`/sourcegraph/v1/repo/availability`, `GET /sourcegraph/api/admin/v1/repo`) add `can_manage`, and for signed-in callers `creator` and `managers` with `id/name/email/department`. Anonymous public reads see neither. `GET /sourcegraph/access-policy` adds `user_repositories`.
+
+Fetching a user-registered repository uses the same credentials as any other: the creator's own code-source token first, then the site-wide token. Turning the setting on therefore lets signed-in users register any repository the site-wide token can read. Fetch failures name the cause (`GIT_REPOSITORY_UNAVAILABLE` for a missing repository or one the token cannot see, `GIT_ACCESS_DENIED`, `GIT_AUTH_FAILED`, `GIT_CREDENTIAL_UNAVAILABLE`, `GIT_FETCH_FAILED`), and the website links to the creator's code-source token settings.
+
 ### Code sources
 
 Code sources, their settings and token order are described in [code sources and tokens](code-sources.md).

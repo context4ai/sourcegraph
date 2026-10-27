@@ -8,10 +8,12 @@
     LEASE_EXPIRED: ["任务租约过期，原执行者未及时续租或保存完成状态", "Task lease expired before renewal or completion was saved"],
     PREPARATION_FAILED: ["准备失败，请重试；持续失败时联系维护者查看日志", "Preparation failed; retry or ask the maintainer to inspect logs"],
     PREPARATION_TIMEOUT: ["准备超时，可稍后重试", "Preparation timed out; retry later"],
-    GIT_AUTH_FAILED: ["代码服务凭证认证失败，请更新令牌", "Code service authentication failed; update credentials"],
-    GIT_ACCESS_DENIED: ["代码服务拒绝访问，请检查仓库权限", "Code service access denied; check repository permissions"],
-    GIT_CREDENTIAL_UNAVAILABLE: ["没有可用的代码服务凭证，请检查令牌和有效期", "No usable code credentials; check tokens and expiry"],
-    GIT_FETCH_FAILED: ["拉取代码失败，请检查网络、凭证和仓库权限", "Fetch failed; check network, credentials and repository access"],
+    // Clone credentials: the repository creator's own code source token first, then the site-wide token.
+    GIT_AUTH_FAILED: ["代码源令牌已失效或被拒绝。请仓库创建者在「用户设置 → 代码源令牌」更新个人令牌，然后重新检查更新", "The code source token was rejected or has expired. The repository creator should update their token in User settings → Code source tokens, then check for updates again"],
+    GIT_ACCESS_DENIED: ["所用的代码源令牌没有读取这个仓库的权限。拉取时先用仓库创建者的个人令牌，没有时用管理员配置的全局令牌；请仓库创建者在「用户设置 → 代码源令牌」添加能读取该仓库的个人令牌，然后重新检查更新", "The code source token used cannot read this repository. Fetching uses the repository creator's own token first, then the site-wide token; the creator should add a token that can read it in User settings → Code source tokens, then check for updates again"],
+    GIT_REPOSITORY_UNAVAILABLE: ["找不到这个仓库：仓库名可能有误，或所用的令牌看不到这个非公开仓库。请先核对仓库名；仓库存在时，请仓库创建者在「用户设置 → 代码源令牌」添加能读取它的个人令牌，然后重新检查更新", "Repository not found: the name may be wrong, or the token used cannot see this private repository. Check the name first; if it exists, the repository creator should add a token that can read it in User settings → Code source tokens, then check for updates again"],
+    GIT_CREDENTIAL_UNAVAILABLE: ["没有可用的代码源令牌：仓库创建者没有配置个人令牌，站点也没有可用的全局令牌。请在「用户设置 → 代码源令牌」添加个人令牌，然后重新检查更新", "No code source token is available: the repository creator has none and the site has no usable global token. Add one in User settings → Code source tokens, then check for updates again"],
+    GIT_FETCH_FAILED: ["拉取代码失败。新登记的仓库多半是令牌没有读取权限：请仓库创建者在「用户设置 → 代码源令牌」添加能读取它的个人令牌后重新检查更新；其他情况请检查网络后重试", "Fetching failed. For a newly registered repository this is usually a token without read access: the creator should add a token that can read it in User settings → Code source tokens and check for updates again; otherwise check connectivity and retry"],
     GIT_OPERATION_FAILED: ["Git 操作失败，请检查仓库访问及服务日志", "Git operation failed; check access and service logs"],
     GIT_OUTPUT_LIMIT: ["Git 输出超过处理上限，请缩小范围", "Git output exceeded the processing limit; narrow the scope"],
     PARTIAL_CLONE_UNSUPPORTED: ["远端不支持按需克隆，无法使用当前索引模式", "Remote does not support partial clone for this mode"],
@@ -39,6 +41,10 @@
     DEFAULT_BRANCH_NOT_OBSERVED: ['主干尚未同步，请查看仓库准备进度', 'The default branch has not been synchronized'],
     INDEX_NOT_READY: ['该提交的索引尚未就绪', 'The index for this commit is not ready'],
     REPOSITORY_DISABLED: ['仓库已停用或删除', 'Repository disabled or deleted'],
+    REGISTRATION_DISABLED: ['本站只允许管理员登记仓库', 'Only administrators can register repositories on this site'],
+    REPOSITORY_MANAGEMENT_DENIED: ['只有这个仓库的管理员或站点管理员可以管理它', 'Only this repository\'s managers or a site administrator can manage it'],
+    USER_NOT_FOUND: ['找不到该用户，或该用户已停用', 'User not found or disabled'],
+    TOO_MANY_MANAGERS: ['一个仓库最多 50 位管理员', 'A repository can have at most 50 managers'],
     RATE_LIMITED: ['请求较多，请稍后重试', 'Too many requests. Try again shortly']
   };
   function message(code, fallback) {
@@ -86,7 +92,9 @@
     }
     throw new Error('Repository catalog exceeds the browser limit');
   }
-  var API = window.API = { request: request, loadSession: loadSession, catalog: catalog, message: message, jobError: function(job) { var code=job.error||""; return message(code, document.documentElement.lang === "en" ? "Task did not complete; retry or inspect service logs" : "任务未完成，请重试或联系维护者查看日志") + (job.recovery_reason ? " · " + message(job.recovery_reason, job.recovery_reason) : "") + " · " + code; }, session: session, policy: policy,
+  var API = window.API = { request: request, loadSession: loadSession, catalog: catalog, message: message, credentialCodes: ['GIT_AUTH_FAILED', 'GIT_ACCESS_DENIED', 'GIT_REPOSITORY_UNAVAILABLE', 'GIT_CREDENTIAL_UNAVAILABLE', 'GIT_FETCH_FAILED'],
+    credentialLink: function(code) { if (!API.credentialCodes.includes(code)) return ''; var en = document.documentElement.lang === 'en'; return ' <a href="/sourcegraph/user-settings#code-source-tokens" class="underline underline-offset-2 hover:text-ink">' + (en ? 'Open code source tokens' : '去配置代码源令牌') + '</a>'; },
+    jobError: function(job) { var code=job.error||""; return message(code, document.documentElement.lang === "en" ? "Task did not complete; retry or inspect service logs" : "任务未完成，请重试或联系维护者查看日志") + (job.recovery_reason ? " · " + message(job.recovery_reason, job.recovery_reason) : "") + " · " + code; }, session: session, policy: policy,
     idempotency: function () { return crypto.randomUUID(); },
     repo: function (repo, signal) { return request('/v1/repo/availability?repo=' + encodeURIComponent(repo), { signal: signal }); } };
   API.ready = Promise.all([loadSession(), request('/access-policy').then(function (p) { API.policy = p; }).catch(function (e) { API.policyError = e; })]);

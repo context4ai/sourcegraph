@@ -188,6 +188,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.adminUsers(w, r)
 		return
 	}
+	if r.URL.Path == Prefix+"users/search" {
+		h.searchPeople(w, r)
+		return
+	}
 	if r.URL.Path == Prefix+"api-keys" || strings.HasPrefix(r.URL.Path, Prefix+"api-keys/") {
 		h.apiKeys(w, r)
 		return
@@ -463,7 +467,11 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request, management b
 		fail(w, 403, "CSRF_REQUIRED")
 		return r, false
 	}
-	return r.WithContext(identity.WithActor(r.Context(), "sso:"+u.ID)), true
+	ctx := identity.WithActor(r.Context(), "sso:"+u.ID)
+	if admin {
+		ctx = identity.WithAdmin(ctx)
+	}
+	return r.WithContext(ctx), true
 }
 
 // HasSession reports a browser credential without treating it as authenticated.

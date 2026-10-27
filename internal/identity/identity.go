@@ -39,3 +39,15 @@ func UserID(ctx context.Context) string {
 	}
 	return ""
 }
+
+type adminKey struct{}
+
+// WithAdmin records that the authenticated caller holds site-wide management
+// authority: an administrator session or the deployment service credential.
+func WithAdmin(ctx context.Context) context.Context {
+	return context.WithValue(ctx, adminKey{}, true)
+}
+func IsAdmin(ctx context.Context) bool {
+	value, _ := ctx.Value(adminKey{}).(bool)
+	return value
+}

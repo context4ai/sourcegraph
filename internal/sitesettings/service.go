@@ -29,7 +29,7 @@ func New(ctx context.Context, store Store, publicReadSeed bool) (*Service, error
 	now := time.Now().UTC()
 	records := []Record{
 		{Name: RepositoryDefaultsName, Revision: 1, Values: map[string]any{"retention_mode": "days", "retention_days": 30, "retention_count": 20}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
-		{Name: AccessName, Revision: 1, Values: map[string]any{"public_read": publicReadSeed, "allow_registration": false, "registration_notice_zh": DefaultNoticeZH, "registration_notice_en": DefaultNoticeEN}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
+		{Name: AccessName, Revision: 1, Values: map[string]any{"public_read": publicReadSeed, "allow_registration": false, "registration_notice_zh": DefaultNoticeZH, "registration_notice_en": DefaultNoticeEN, "allow_user_repositories": false}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 		{Name: CodeSourceName, Revision: 1, Values: map[string]any{"name": "", "host": "", "username": ""}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 	}
 	for _, r := range records {
@@ -51,6 +51,11 @@ func (s *Service) Snapshot() Snapshot {
 	return Snapshot{}
 }
 func (s *Service) PublicRead() bool { return s.Snapshot().Access.Values.PublicRead }
+
+// AllowUserRepositories reports whether ordinary signed-in users may register repositories.
+func (s *Service) AllowUserRepositories() bool {
+	return s != nil && s.Snapshot().Access.Values.AllowUserRepositories
+}
 
 // CodeSourceOverride exposes the website layer of the editable code source.
 func (s *Service) CodeSourceOverride() codesources.Override {

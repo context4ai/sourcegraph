@@ -25,7 +25,8 @@ jobs:
       - run: python3 scripts/audit-public.py
       - run: docker build --build-arg BUILD_REVISION=${{ github.sha }} -t sourcegraph:verify .
   databases:
-    runs-on: ubuntu-latest
+    # MongoDB refuses to start on Linux 6.19+ (SERVER-121912), which ubuntu-latest (26.04) now runs.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17
@@ -54,6 +55,9 @@ jobs:
             sleep 2
           done
           exit 1
+      - name: MongoDB container log
+        if: failure()
+        run: docker logs --tail 80 mongo-contract || true
       - run: go test -count=1 -v ./internal/storagecontract
         env:
           TEST_POSTGRES_URL: postgres://postgres:contract-test@localhost:5432/sourcegraph_test?sslmode=disable

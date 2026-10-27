@@ -95,9 +95,10 @@
     return '<span class="inline-flex items-center gap-1.5 text-[13px]"><span class="dot ' + color + '"></span>' + A.esc(A.t(...label)) + '</span>';
   }
   function error(e) { return [e.code, e.message, e.requestId && 'request: ' + e.requestId].filter(Boolean).join(' · '); }
-  function manage() {
+  // allowed overrides the site-wide check, e.g. with a repository's can_manage.
+  function manage(allowed) {
     if (!root.App.user()) { root.App.requireLogin(location.pathname + location.search + location.hash); return false; }
-    if (!root.App.canManage()) { root.App.toast(root.App.t('当前登录身份没有仓库管理权限', 'Your account does not have repository management permission'), 'bad'); return false; }
+    if (!(allowed === undefined ? root.App.canManage() : allowed)) { root.App.toast(root.App.t('当前登录身份没有仓库管理权限', 'Your account does not have repository management permission'), 'bad'); return false; }
     return true;
   }
   // Retry a result-unknown request with the same key; successful explicit actions get a new one.

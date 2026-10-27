@@ -58,7 +58,7 @@ func New(c config.Config, log *slog.Logger) http.Handler {
 		status = 200
 		switch route {
 		case "access-policy":
-			writeJSON(w, status, accessPolicy(c, false, false))
+			writeJSON(w, status, accessPolicy(c, false, false, false))
 		case "health":
 			writeJSON(w, status, map[string]any{"status": "alive"})
 		case "readiness":
