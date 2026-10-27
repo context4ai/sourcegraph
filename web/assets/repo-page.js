@@ -185,7 +185,7 @@
       (rest>0?'<button id="more-jobs" type="button" class="-mx-3 mt-8 rounded-control px-3 py-2 text-[13.5px] text-muted hover:bg-sand hover:text-ink">'+t('加载更多（还有 '+rest+' 个）','Load more ('+rest+' more)')+'</button>':'');
   }
 
-  function ensureDraft(){if(!draft)draft={branches:repo.policy.branches.slice(),defaultBranch:!!repo.policy.default_branch,publicRead:repo.public_read!==false,pending:'',kind:repo.policy.days?'days':'count',value:String(repo.policy.days||repo.policy.count),gitTimeout:String(repo.git_timeout_minutes||0),syncInterval:String(repo.sync_interval_minutes||M.DEFAULT_SYNC_INTERVAL_MINUTES),skipGenerated:!repo.index_generated,indexSymlinks:repo.index_symlinks!==false,pathState:{groups:repo.path_groups||[]}};}
+  function ensureDraft(){if(!draft)draft={branches:(repo.policy.branches||[]).slice(),defaultBranch:!!repo.policy.default_branch,publicRead:repo.public_read!==false,pending:'',kind:repo.policy.days?'days':'count',value:String(repo.policy.days||repo.policy.count),gitTimeout:String(repo.git_timeout_minutes||0),syncInterval:String(repo.sync_interval_minutes||M.DEFAULT_SYNC_INTERVAL_MINUTES),skipGenerated:!repo.index_generated,indexSymlinks:repo.index_symlinks!==false,pathState:{groups:repo.path_groups||[]}};}
   function settings(){
     if(repo.deleted)return '<p class="text-[14px] text-muted">'+t('仓库已标记删除，无法修改设置。请在「管理」里重试永久删除','This repository is marked for deletion and cannot be edited. Retry permanent deletion from Manage')+'</p>';
     const can=A.user()&&canRepo(), k=keep(repo.policy);
