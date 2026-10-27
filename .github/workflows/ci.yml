@@ -25,7 +25,8 @@ jobs:
       - run: python3 scripts/audit-public.py
       - run: docker build --build-arg BUILD_REVISION=${{ github.sha }} -t sourcegraph:verify .
   databases:
-    runs-on: ubuntu-latest
+    # MongoDB refuses to start on Linux 6.19+ (SERVER-121912), which ubuntu-latest (26.04) now runs.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17
@@ -43,8 +44,7 @@ jobs:
           go-version-file: go.mod
       - name: Start MongoDB replica set
         run: |
-          # Pinned to 8.0: the floating mongo:8 tag moved to 8.3.x, whose container exits on start on hosted runners (2026-10-27).
-          docker run -d --name mongo-contract -p 27017:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          docker run -d --name mongo-contract -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
           for i in $(seq 1 40); do
             if docker exec mongo-contract mongosh --quiet --eval 'db.adminCommand({ping:1})'; then break; fi
             sleep 2
