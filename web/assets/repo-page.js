@@ -9,7 +9,7 @@
   let tab=TABS.some(x=>x[0]===p.get('tab'))?p.get('tab'):'overview',repo=null,draft=null,preview=null,busy=false,loading=false,versionLimit=20,jobLimit=JOB_PAGE;
   let branchInput=null,pathInput=null;
   const keys=M.operationKeys();
-  const maintenance=RepoMaintenance.mount({repository:()=>repo,busy:value=>{busy=value;},isBusy:()=>busy,reload:()=>load(true),jobs:()=>{tab='jobs';p.set('tab',tab);history.replaceState(null,'',location.pathname+'?'+p);}});
+  const maintenance=RepoMaintenance.mount({repository:()=>repo,canManage:()=>canRepo(),busy:value=>{busy=value;},isBusy:()=>busy,reload:()=>load(true),jobs:()=>{tab='jobs';p.set('tab',tab);history.replaceState(null,'',location.pathname+'?'+p);}});
   const btn2='rounded-control bg-ink/[0.05] px-3 py-1.5 text-[13.5px] hover:bg-ink/[0.08]';
   const act='shrink-0 inline-flex items-center gap-1 rounded-control px-2 py-1 text-[13px] text-muted hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40';
   const SEP=' <span class="px-1 text-muted/50">·</span> ';
@@ -19,7 +19,8 @@
 
   function setTab(k){tab=k;p.set('tab',k);history.replaceState(null,'',location.pathname+'?'+p);render();}
   function keep(v){return v.days?[v.days,t('天','days')]:[v.count,t('个提交','commits')];}
-  function canPrepare(){return !!(API.policy.public_prepare||A.canManage());}
+  function canRepo(){return !!(repo&&repo.can_manage)||A.canManage();}
+  function canPrepare(){return !!(API.policy.public_prepare||canRepo());}
   function prepareLabel(label){if(canPrepare())return label;const why=A.user()?t('需管理权限','management permission required'):t('需登录','sign-in required');return A.ICON.lock+'<span>'+label+'</span><span class="sr-only"> · '+why+'</span>';}
   function prepareTitle(){return canPrepare()?'':A.user()?t('需管理权限','Management permission required'):t('登录后可用','Available after sign-in');}
   function ago(x){
@@ -62,7 +63,7 @@
     $('#manage').innerHTML=(u?'':A.ICON.lock)+t('管理','Manage')+A.ICON.chevron;
     const items=repo.deleted?[['purge','重试永久删除','Retry permanent deletion']]:[['policy','修改设置','Edit settings'],['index','新增索引','Add index'],['cleanup','清理落后索引','Clean old indexes'],['toggle',repo.enabled?'停用仓库':'启用仓库',repo.enabled?'Disable':'Enable'],['delete','删除仓库','Delete']];
     $('#manage-menu').innerHTML=(u?'':'<div class="px-2 pb-1.5 pt-1 text-[12.5px] text-muted">'+t('登录后可用','Available after sign-in')+'</div>')+items.map(x=>'<button data-act="'+x[0]+'" class="block w-full rounded-control px-2 py-1.5 text-left hover:bg-sand '+(['delete','purge'].includes(x[0])?'text-danger':'')+'">'+t(x[1],x[2])+'</button>').join('');
-    $('#manage-menu').querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{b.closest('details').open=false;if(!M.manage())return;if(b.dataset.act==='policy')setTab('policy');else if(['index','cleanup','delete','purge'].includes(b.dataset.act))maintenance.open(b.dataset.act);else confirm(b.dataset.act);});
+    $('#manage-menu').querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{b.closest('details').open=false;if(!M.manage(canRepo()))return;if(b.dataset.act==='policy')setTab('policy');else if(['index','cleanup','delete','purge'].includes(b.dataset.act))maintenance.open(b.dataset.act);else confirm(b.dataset.act);});
     $('#tabs').innerHTML=TABS.map(x=>'<button data-tab="'+x[0]+'" class="pb-1 '+(tab===x[0]?'text-ink shadow-[inset_0_-1.5px_0_currentColor]':'text-muted hover:text-ink')+'">'+t(x[1],x[2])+'</button>').join('');
     $('#tabs').querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
   }
@@ -106,7 +107,34 @@
         [t('可查询','Searchable'),v?mono(A.short(v.commit))+sub(t('提交于 '+A.clock(v.committer_time),'committed '+A.clock(v.committer_time))):'<span class="text-muted">'+t('准备完成后可查询','Available once prepared')+'</span>',v?'<a class="'+act+'" href="'+codeHref(v.commit)+'">'+t('阅读代码','Browse code')+'</a>':''],
         ...(repo.index_mode!=='monorepo'&&M.indexTiming(repo)?[[t('最近索引','Last indexing'),esc(M.indexTiming(repo))+sub(A.validTime(repo.last_indexed_at)?esc(M.time(repo.last_indexed_at)):'')]]:[]),
         [t('最近任务','Last job'),'<span class="text-[13.5px]">'+jobText(jobs[0])+'</span>',jobs.length?'<button data-goto="jobs" class="'+act+'">'+t('查看','View')+'</button>':'']
-      ]))+'</div></div>';
+      ]))+'</div></div>'+info();
+  }
+
+  // Who created and manages the repository. The server returns people to signed-in users only.
+  function person(x){return x?esc(x.name||x.id)+(x.email?'<span class="ml-2 text-[13px] text-muted">'+esc(x.email)+'</span>':''):'<span class="text-muted">'+t('未记录','Not recorded')+'</span>';}
+  function info(){
+    if(!A.user())return '';
+    const can=canRepo()&&!repo.deleted, me=A.user().id;
+    const list=(repo.managers||[]).map(x=>'<li class="flex flex-wrap items-center gap-x-3 py-1"><span>'+person(x)+'</span>'+(can?'<button data-remove-manager="'+esc(x.id)+'" class="'+act+'">'+(x.id===me?t('退出管理','Leave'):t('移除','Remove'))+'</button>':'')+'</li>').join('')||'<li class="py-1 text-muted">'+t('无，仅站点管理员可管理','None; only site administrators can manage it')+'</li>';
+    const add=can?'<form id="add-manager" class="mt-3 flex flex-wrap items-center gap-2"><input id="manager-q" list="manager-options" autocomplete="off" maxlength="128" placeholder="'+esc(t('输入姓名或邮箱搜索用户','Search users by name or email'))+'" class="w-64 max-w-full rounded-control bg-ink/[0.04] px-3 py-1.5 text-[13.5px] outline-none ring-1 ring-transparent focus:ring-ink/20"><datalist id="manager-options"></datalist><button class="'+btn2+'">'+t('添加管理员','Add manager')+'</button><span id="manager-error" class="text-[13px] text-danger"></span></form>':'';
+    const note='<p class="mt-3 text-[12.5px] text-muted">'+t('仓库管理员和站点管理员可以修改设置、准备和清理索引、删除仓库，以及增减管理员','Repository managers and site administrators can edit settings, prepare and clean indexes, delete the repository, and add or remove managers')+'</p>';
+    return '<div class="mt-14">'+heading(t('仓库信息','Repository info'))+'<div class="mt-4">'+rows([[t('创建者','Creator'),person(repo.creator)],[t('管理员','Managers'),'<ul>'+list+'</ul>'+add+note]])+'</div></div>';
+  }
+  let managerOptions=new Map(),managerTimer=0;
+  function bindManagers(){
+    document.querySelectorAll('[data-remove-manager]').forEach(b=>b.onclick=()=>changeManager({remove:b.dataset.removeManager}));
+    const q=$('#manager-q');if(!q)return;
+    q.oninput=()=>{clearTimeout(managerTimer);const v=q.value.trim();$('#manager-error').textContent='';if(!v||managerOptions.has(v))return;
+      managerTimer=setTimeout(async()=>{try{const r=await API.request('/sourcegraph/auth/users/search?q='+encodeURIComponent(v));managerOptions=new Map(r.items.map(u=>[u.email||u.name,u]));$('#manager-options').innerHTML=r.items.map(u=>'<option value="'+esc(u.email||u.name)+'">'+esc(u.name+(u.department?' · '+u.department:''))+'</option>').join('');}catch(e){$('#manager-error').textContent=M.error(e);}},250);};
+    $('#add-manager').onsubmit=e=>{e.preventDefault();const u=managerOptions.get(q.value.trim());if(!u){$('#manager-error').textContent=t('请从搜索结果中选择用户','Choose a user from the search results');return;}changeManager({add:u.id});};
+  }
+  async function changeManager(body){
+    if(busy||!M.manage(canRepo()))return;
+    if(body.remove&&body.remove===A.user().id&&!A.canManage()&&!confirm(t('退出后你将不能再管理这个仓库，确定吗？','After leaving you can no longer manage this repository. Continue?')))return;
+    busy=true;
+    try{repo=await API.request('/api/admin/v1/repo/managers?repo='+enc,{method:'POST',headers:{'If-Match':'"'+repo.revision+'"'},body});managerOptions=new Map();A.toast(t('管理员已更新','Managers updated'));}
+    catch(e){A.toast(M.error(e),'bad');if(e.status===412){try{await load(true);}catch(_){}}}
+    finally{busy=false;render();}
   }
 
   function versions(){
@@ -130,7 +158,7 @@
   // Steps: a numbered rail. Done is ink, the current stage is live or danger, the rest is muted.
   function jobs(){
     const js=R.jobs(repo);
-    const checks=Object.entries(repo.sync_checks||{}).map(([group,c])=>'<p class="text-[13px] text-muted">'+(group?esc(group)+' · ':'')+t('最近检查 ','Last checked ')+esc(A.clock(c.checked_at))+' · '+(c.error?esc(API.jobError({error:c.error})):c.no_changes?t('版本未变化，无需索引','No version changes; indexing skipped'):t('检查完成','Check completed'))+(c.unchanged_count>1?t(' · 连续 '+c.unchanged_count+' 次无变化',' · '+c.unchanged_count+' consecutive unchanged checks'):'')+'</p>').join('');
+    const checks=Object.entries(repo.sync_checks||{}).map(([group,c])=>'<p class="text-[13px] text-muted">'+(group?esc(group)+' · ':'')+t('最近检查 ','Last checked ')+esc(A.clock(c.checked_at))+' · '+(c.error?esc(API.jobError({error:c.error}))+API.credentialLink(c.error):c.no_changes?t('版本未变化，无需索引','No version changes; indexing skipped'):t('检查完成','Check completed'))+(c.unchanged_count>1?t(' · 连续 '+c.unchanged_count+' 次无变化',' · '+c.unchanged_count+' consecutive unchanged checks'):'')+'</p>').join('');
     const failures=(repo.job_failures||[]).filter(f=>Date.now()-Date.parse(f.time)<7*86400000);
     const history=failures.length?'<details class="mb-8 rounded-doc bg-sand p-4"><summary class="cursor-pointer text-[14px]">'+t('历史任务失败摘要（'+failures.length+' 条）','Historical task failures ('+failures.length+')')+'</summary><p class="mt-3 text-[13px] text-muted">'+t('保留最近 7 天，最多 128 条；独立于任务队列。历史失败不代表当前状态。','Last 7 days, up to 128 records; separate from the task queue. Historical failures do not describe current health.')+'</p><div class="mt-4 max-h-80 overflow-auto space-y-4">'+failures.map(f=>'<div class="text-[13px] break-all"><div>'+esc(M.time(f.time))+' · '+esc(f.kind)+' · '+esc(f.group||'')+'</div><div class="font-mono">'+esc(f.code)+' · '+esc(f.commit||'—')+'</div><div class="text-muted">'+esc(f.job_id)+t(' · 尝试 '+f.attempt+' 次',' · '+f.attempt+' attempts')+'</div></div>').join('')+'</div></details>':'';
     const summary=(checks?'<div class="mb-8 space-y-2">'+checks+'</div>':'')+history;
@@ -149,10 +177,10 @@
       const phase=j.state==='queued'?t('已等待 ','waiting '):j.state==='running'?t('已运行 ','running '):t('用时 ','took ');
       const when=t('创建 '+A.clock(j.created_at),'created '+A.clock(j.created_at))+(took?' · '+phase+took:'')+(j.attempt>1?t(' · 第 '+j.attempt+' 次尝试',' · attempt '+j.attempt):'');
       const retry=(j.state==='failed'||j.state==='canceled'||j.state==='cancelled')&&live?' <button class="retry ml-2 inline-flex items-center gap-1 underline underline-offset-2 disabled:opacity-40" data-kind="'+esc(j.kind)+'" data-group="'+esc(j.group||'')+'" data-commit="'+esc(j.commit||'')+'" title="'+esc(prepareTitle())+'" '+(busy?'disabled':'')+'>'+prepareLabel(t('重新准备','Prepare again'))+'</button>':'';
-      return '<article'+(jobRecoveredAt(j)?' class="opacity-60"':'')+'><div class="flex flex-wrap items-baseline gap-3"><span class="font-mono text-[13px]">'+esc(j.kind==='sync'?t('检查更新','Check updates'):kindName(j.kind))+'</span>'+A.status(j.state)+(j.group?'<span class="font-mono text-[12.5px] text-muted">'+esc(j.group)+'</span>':'')+(j.commit?'<span class="font-mono text-[12.5px] text-muted">'+esc(A.short(j.commit))+'</span>':'')+'<span class="type-fig">'+esc(j.job_id)+'</span><span class="type-fig ml-auto">'+(A.canManage()&&M.active(j)?'<button data-stop-job="'+esc(j.job_id)+'" class="mr-3 underline underline-offset-2 hover:text-ink disabled:opacity-40" '+(busy?'disabled':'')+'>'+t('停止','Stop')+'</button>':'')+when+'</span></div>'+
+      return '<article'+(jobRecoveredAt(j)?' class="opacity-60"':'')+'><div class="flex flex-wrap items-baseline gap-3"><span class="font-mono text-[13px]">'+esc(j.kind==='sync'?t('检查更新','Check updates'):kindName(j.kind))+'</span>'+A.status(j.state)+(j.group?'<span class="font-mono text-[12.5px] text-muted">'+esc(j.group)+'</span>':'')+(j.commit?'<span class="font-mono text-[12.5px] text-muted">'+esc(A.short(j.commit))+'</span>':'')+'<span class="type-fig">'+esc(j.job_id)+'</span><span class="type-fig ml-auto">'+(canRepo()&&M.active(j)?'<button data-stop-job="'+esc(j.job_id)+'" class="mr-3 underline underline-offset-2 hover:text-ink disabled:opacity-40" '+(busy?'disabled':'')+'>'+t('停止','Stop')+'</button>':'')+when+'</span></div>'+
         '<div class="mt-4 flex gap-2">'+rail+'</div>'+(j.no_changes&&j.state==='succeeded'?'<p class="mt-3 text-[13px] text-muted">'+t('版本未变化，无需索引','No version changes; indexing skipped')+'</p>':'')+(j.kind!=='sync'&&M.indexTiming(j)?'<p class="mt-3 text-[13px] text-muted">'+esc(M.indexTiming(j))+'</p>':'')+
         (jobRecoveredAt(j)?'<p class="mt-3 text-[13px] text-muted">'+t('后续检查或任务已恢复 · ','Recovered by a later check or task · ')+esc(A.clock(jobRecoveredAt(j)))+t('；保留原失败记录','; original failure retained')+'</p>':'')+
-        (j.error?'<p class="mt-4 break-words text-[14px]"><span class="text-danger">'+esc(API.jobError(j))+'</span>'+retry+'</p>':retry?'<p class="mt-4 text-[14px]">'+retry+'</p>':'')+'</article>';
+        (j.error?'<p class="mt-4 break-words text-[14px]"><span class="text-danger">'+esc(API.jobError(j))+'</span>'+API.credentialLink(j.error)+retry+'</p>':retry?'<p class="mt-4 text-[14px]">'+retry+'</p>':'')+'</article>';
     }).join('')+'</div>'+
       (rest>0?'<button id="more-jobs" type="button" class="-mx-3 mt-8 rounded-control px-3 py-2 text-[13.5px] text-muted hover:bg-sand hover:text-ink">'+t('加载更多（还有 '+rest+' 个）','Load more ('+rest+' more)')+'</button>':'');
   }
@@ -160,7 +188,7 @@
   function ensureDraft(){if(!draft)draft={branches:repo.policy.branches.slice(),defaultBranch:!!repo.policy.default_branch,publicRead:repo.public_read!==false,pending:'',kind:repo.policy.days?'days':'count',value:String(repo.policy.days||repo.policy.count),syncInterval:String(repo.sync_interval_minutes||M.DEFAULT_SYNC_INTERVAL_MINUTES),skipGenerated:!repo.index_generated,indexSymlinks:repo.index_symlinks!==false,pathState:{groups:repo.path_groups||[]}};}
   function settings(){
     if(repo.deleted)return '<p class="text-[14px] text-muted">'+t('仓库已标记删除，无法修改设置。请在「管理」里重试永久删除','This repository is marked for deletion and cannot be edited. Retry permanent deletion from Manage')+'</p>';
-    const can=A.user()&&A.canManage(), k=keep(repo.policy);
+    const can=A.user()&&canRepo(), k=keep(repo.policy);
     if(!can)return '<div>'+rows([[t('索引模式','Indexing mode'),M.indexModeLabel(repo.index_mode)],[t('监听分支','Branches'),mono(esc((repo.policy.branches||[]).join(', ')))],[t('保留','Retention'),t('最近 '+k[0]+' '+k[1],'Last '+k[0]+' '+k[1])],[t('同步间隔','Sync interval'),M.syncIntervalLabel(repo.sync_interval_minutes||M.DEFAULT_SYNC_INTERVAL_MINUTES)],[t('软链目标','Symlink targets'),repo.index_symlinks!==false?t('新索引展开仓库内软链','New indexes follow repository symlinks'):t('新索引不展开软链','New indexes do not follow symlinks')],[t('压缩文件','Minified files'),repo.index_generated?t('压缩 JS/CSS 与 source map 建立索引','Minified JS/CSS and source maps are indexed'):t('压缩 JS/CSS 与 source map 不建立索引','Minified JS/CSS and source maps are not indexed')]])+
       '<button id="policy-login" class="mt-5 inline-flex items-center gap-1.5 '+btn2+'">'+A.ICON.lock+t(A.user()?'当前账号不能修改':'登录后修改',A.user()?'Your account cannot edit':'Sign in to edit')+'</button></div>';
     ensureDraft();
@@ -211,10 +239,10 @@
     }
     return '<div class="font-medium text-ink">'+t('保存后','After saving')+'</div><ul class="mt-2 space-y-1.5">'+lines.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
   }
-  async function previewPolicy(){if(busy||!M.manage())return;let body;try{body=target();}catch(e){$('#policy-error').textContent=e.message;return;}busy=true;$('#preview').disabled=true;$('#policy-error').textContent='';try{const v=await API.request('/api/admin/v1/repo/preview?repo='+enc,{method:'POST',body});if(v.revision!==repo.revision){await load(true);throw Object.assign(new Error(t('仓库刚被修改过，输入已保留，请重新预览','The repository just changed; your input is kept. Preview again')),{code:'REVISION_CONFLICT',status:412});}if(JSON.stringify(target())!==JSON.stringify(body))throw new Error(t('输入已变化，请重新预览','Inputs changed; preview again'));preview={body,value:v};$('#impact').className='rounded-surface bg-ink/[0.03] p-5 text-[13.5px] text-muted';$('#impact').innerHTML=impact(v,body);$('#save').disabled=false;}catch(e){preview=null;$('#policy-error').textContent=M.error(e);}finally{busy=false;$('#preview').disabled=false;}}
-  async function savePolicy(e){e.preventDefault();if(busy||!preview||!M.manage())return;capture();let body;try{body=target();}catch(e){$('#policy-error').textContent=e.message;return;}if(JSON.stringify(body)!==JSON.stringify(preview.body)){invalidate();return;}busy=true;$('#save').disabled=true;try{repo=await API.request(endpoint,{method:'PATCH',headers:{'If-Match':'"'+preview.value.revision+'"'},body:{...body,preview:preview.value.preview}});preview=null;draft=null;A.toast(t('设置已保存','Settings saved'));render();}catch(e){preview=null;if(e.status===412){try{await load(true);}catch(_){}}$('#policy-error').textContent=M.error(e)+(e.status===412?t('；输入已保留，请重新预览','; input kept, preview again'):'');}finally{busy=false;if(repo)header();}}
+  async function previewPolicy(){if(busy||!M.manage(canRepo()))return;let body;try{body=target();}catch(e){$('#policy-error').textContent=e.message;return;}busy=true;$('#preview').disabled=true;$('#policy-error').textContent='';try{const v=await API.request('/api/admin/v1/repo/preview?repo='+enc,{method:'POST',body});if(v.revision!==repo.revision){await load(true);throw Object.assign(new Error(t('仓库刚被修改过，输入已保留，请重新预览','The repository just changed; your input is kept. Preview again')),{code:'REVISION_CONFLICT',status:412});}if(JSON.stringify(target())!==JSON.stringify(body))throw new Error(t('输入已变化，请重新预览','Inputs changed; preview again'));preview={body,value:v};$('#impact').className='rounded-surface bg-ink/[0.03] p-5 text-[13.5px] text-muted';$('#impact').innerHTML=impact(v,body);$('#save').disabled=false;}catch(e){preview=null;$('#policy-error').textContent=M.error(e);}finally{busy=false;$('#preview').disabled=false;}}
+  async function savePolicy(e){e.preventDefault();if(busy||!preview||!M.manage(canRepo()))return;capture();let body;try{body=target();}catch(e){$('#policy-error').textContent=e.message;return;}if(JSON.stringify(body)!==JSON.stringify(preview.body)){invalidate();return;}busy=true;$('#save').disabled=true;try{repo=await API.request(endpoint,{method:'PATCH',headers:{'If-Match':'"'+preview.value.revision+'"'},body:{...body,preview:preview.value.preview}});preview=null;draft=null;A.toast(t('设置已保存','Settings saved'));render();}catch(e){preview=null;if(e.status===412){try{await load(true);}catch(_){}}$('#policy-error').textContent=M.error(e)+(e.status===412?t('；输入已保留，请重新预览','; input kept, preview again'):'');}finally{busy=false;if(repo)header();}}
   async function prepare(kind,commit='',group=''){
-    if(busy)return;if(!canPrepare()){M.manage();return;}busy=true;render();const body={kind,commit,...(group?{group}:{})};
+    if(busy)return;if(!canPrepare()){M.manage(canRepo());return;}busy=true;render();const body={kind,commit,...(group?{group}:{})};
     try{
       const result=await API.request('/api/admin/v1/repo/prepare?repo='+enc,{method:'POST',body,headers:{'Idempotency-Key':keys.get(body)}}),jobs=M.jobReceipts(result);
       keys.done(body);A.toast(jobs.length>1?t(jobs.length+' 个分组任务已登记',jobs.length+' group jobs registered'):kind==='sync'?t('已开始检查更新','Checking for updates'):t('已开始准备','Preparation started'),jobs.some(j=>j.state==='failed')?'bad':undefined);
@@ -223,7 +251,7 @@
   }
 
   function confirm(kind){
-    if(busy||repo.deleted||kind!=='toggle'||!M.manage())return;
+    if(busy||repo.deleted||kind!=='toggle'||!M.manage(canRepo()))return;
     const d=$('#confirm'),enable=!repo.enabled;
     const title=t(enable?'启用仓库':'停用仓库',enable?'Enable repository':'Disable repository');
     const msg=t(enable?'启用后恢复搜索和更新':'停用后不再接受新的搜索和更新，已有数据保留',enable?'Search and updates resume':'Search and updates stop. Existing data is kept');
@@ -242,7 +270,7 @@
     };
   }
   async function stopJob(button){
-    if(busy||!M.manage())return;
+    if(busy||!M.manage(canRepo()))return;
     busy=true;button.disabled=true;
     try{await API.request('/api/admin/v1/repo/jobs/cancel?repo='+enc,{method:'POST',body:{job_id:button.dataset.stopJob}});A.toast(t('已停止任务','Task stopped'));await load(true);}
     catch(e){A.toast(M.error(e),'bad');}
@@ -252,6 +280,7 @@
     if(!repo)return;header();$('#panel').innerHTML=({overview,versions,jobs,plugins:()=>'<div id="repo-plugins"></div>',policy:settings})[tab]();branchInput=null;pathInput=null;
     if(tab==='plugins')RepoPlugins.mount($('#repo-plugins'),repo);
     document.querySelectorAll('[data-stop-job]').forEach(b=>b.onclick=()=>stopJob(b));
+    bindManagers();
     document.querySelectorAll('[data-prepare]').forEach(b=>b.onclick=()=>prepare('index',b.dataset.prepare,b.dataset.group));
     document.querySelectorAll('.retry').forEach(b=>b.onclick=()=>prepare(b.dataset.kind,b.dataset.commit,b.dataset.group));
     document.querySelectorAll('[data-group-sync]').forEach(b=>b.onclick=()=>prepare('sync','',b.dataset.groupSync));
@@ -259,11 +288,11 @@
     document.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>setTab(b.dataset.goto));
     if($('#more-versions'))$('#more-versions').onclick=()=>{versionLimit+=50;render();};
     if($('#more-jobs'))$('#more-jobs').onclick=()=>{jobLimit+=JOB_PAGE;render();};
-    if($('#policy-login'))$('#policy-login').onclick=()=>M.manage();
+    if($('#policy-login'))$('#policy-login').onclick=()=>M.manage(canRepo());
     if($('#preview'))$('#preview').onclick=previewPolicy;
     if($('#policy-form')){branchInput=BranchInput.mount($('#pbranches'),{...draft,onChange:invalidate});if($('#ppaths'))pathInput=PathInput.mount($('#ppaths'),{...draft.pathState,onChange:invalidate});$('#policy-form').onsubmit=savePolicy;['#pvalue','#pkind','#psync-interval','#ppublic','#pskip-generated'].forEach(s=>$(s).oninput=()=>{invalidate();$('#pvalue').max=$('#pkind').value==='days'?365:4096;});}
   }
-  async function load(force=false){if(loading||!name)return;if(!force&&(busy||tab==='policy'||$('#confirm').open))return;loading=true;try{repo=await API.repo(name);$('#load-error').textContent='';render();}catch(e){$('#load-error').textContent=M.error(e);throw e;}finally{loading=false;}}
+  async function load(force=false){if(loading||!name)return;if(!force&&(busy||tab==='policy'||$('#confirm').open||(document.activeElement&&document.activeElement.id==='manager-q')))return;loading=true;try{repo=await API.repo(name);$('#load-error').textContent='';render();}catch(e){$('#load-error').textContent=M.error(e);throw e;}finally{loading=false;}}
   const poller=M.poll(()=>load(),15000,80);$('#sync').disabled=true;$('#search').classList.add('hidden');$('#sync').onclick=()=>prepare('sync');
   document.addEventListener('app:auth',()=>{if(repo)render();});
   document.addEventListener('langchange',()=>{if(tab==='policy')capture();render();});

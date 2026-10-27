@@ -110,7 +110,7 @@
       finally{lock(false);}
     }
     return {open:kind=>{
-      if(working||options.isBusy()||!M.manage())return;
+      if(working||options.isBusy()||!M.manage(options.canManage()))return;
       if(kind==='index'){action=kind;indexState={branches:branchNames(),branch:branchNames()[0]||'',commits:[],commit:''};renderIndex();loadCommits(indexState.branch);}
       else if(kind==='cleanup')openCleanup();
       else if(kind==='delete'||kind==='purge')openDelete();

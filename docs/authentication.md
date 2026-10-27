@@ -2,7 +2,7 @@
 
 Google OIDC and GitHub OAuth identify users by provider and stable subject ID. Matching email addresses do not merge identities or grant administrator access. The first verified identity atomically becomes the administrator. Configure one provider and complete the owner's first sign-in before enabling other providers or promoting the site.
 
-The site setting **Allow other users to sign in or register** defaults to off. Administrators may still sign in. Rejected users receive no profile or session; existing non-administrator sessions and personal API keys also lose access. Anonymous reading of explicitly public repositories remains available. Administrators can edit both language notices; the refusal page returns to a validated local reading page after five seconds.
+The site setting **Allow other users to sign in or register** defaults to off. Administrators may still sign in. Rejected users receive no profile or session; existing non-administrator sessions and personal API keys also lose access. Anonymous reading of explicitly public repositories remains available. A separate setting decides whether signed-in users may register repositories; see [Repository managers](interfaces.md#repository-managers). Administrators can edit both language notices; the refusal page returns to a validated local reading page after five seconds.
 
 ## Demo callback addresses
 

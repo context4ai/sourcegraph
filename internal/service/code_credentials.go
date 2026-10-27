@@ -33,7 +33,7 @@ func (s *Service) withGitCredential(ctx context.Context, r control.Repository, o
 		if err == nil {
 			return nil
 		}
-		if !errors.As(err, &ce) || (ce.Code != "GIT_AUTH_FAILED" && ce.Code != "GIT_ACCESS_DENIED" && ce.Code != "GIT_FETCH_FAILED" && ce.Code != "GIT_HYDRATION_FAILED") {
+		if !errors.As(err, &ce) || (ce.Code != "GIT_AUTH_FAILED" && ce.Code != "GIT_ACCESS_DENIED" && ce.Code != "GIT_REPOSITORY_UNAVAILABLE" && ce.Code != "GIT_FETCH_FAILED" && ce.Code != "GIT_HYDRATION_FAILED") {
 			return err
 		}
 	}

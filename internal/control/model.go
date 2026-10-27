@@ -113,8 +113,14 @@ type Repository struct {
 	SyncChecks   map[string]SyncCheck `json:"sync_checks,omitempty" bson:"sync_checks,omitempty"`
 	CodeProvider string               `json:"code_provider,omitempty" bson:"code_provider,omitempty"`
 	// CodeHost pins the HTTPS origin chosen at registration; later source changes affect new repositories only.
-	CodeHost                 string                `json:"code_host,omitempty" bson:"code_host,omitempty"`
-	CreatorID                string                `json:"created_by,omitempty" bson:"created_by,omitempty"`
+	CodeHost  string `json:"code_host,omitempty" bson:"code_host,omitempty"`
+	CreatorID string `json:"created_by,omitempty" bson:"created_by,omitempty"`
+	// Managers lists user IDs that may manage this repository besides site
+	// administrators. Records saved before managers existed have ManagersSet
+	// false and fall back to their creator; once the list is edited it is kept
+	// as stored, even when empty.
+	Managers                 []string              `json:"-" bson:"managers,omitempty"`
+	ManagersSet              bool                  `json:"-" bson:"managers_set,omitempty"`
 	LeaseRevision            int64                 `json:"-" bson:"lease_revision,omitempty"`
 	DiskUsage                *DiskUsage            `json:"disk_usage,omitempty" bson:"disk_usage,omitempty"`
 	DiskUsagePending         bool                  `json:"-" bson:"disk_usage_pending,omitempty"`
@@ -147,6 +153,33 @@ type Repository struct {
 	Audit          []Audit           `json:"-" bson:"audit"`
 	Updated        time.Time         `json:"updated_at" bson:"updated_at"`
 	ObservedAt     time.Time         `json:"observed_at" bson:"observed_at"`
+}
+
+// MaxManagers bounds the per-repository manager list stored in one document.
+const MaxManagers = 50
+
+// EffectiveManagers returns the user IDs allowed to manage this repository in
+// addition to site administrators.
+func (r Repository) EffectiveManagers() []string {
+	if r.ManagersSet {
+		return append([]string(nil), r.Managers...)
+	}
+	if r.CreatorID != "" {
+		return []string{r.CreatorID}
+	}
+	return nil
+}
+
+func (r Repository) IsManager(userID string) bool {
+	if userID == "" {
+		return false
+	}
+	for _, id := range r.EffectiveManagers() {
+		if id == userID {
+			return true
+		}
+	}
+	return false
 }
 
 func ID(name string) string { h := sha256.Sum256([]byte(name)); return hex.EncodeToString(h[:]) }

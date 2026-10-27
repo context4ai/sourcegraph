@@ -86,14 +86,16 @@
   }
   // Only sources with a configured host can register repositories; the editable source is preselected.
   async function loadSources(){const select=$('#f-code-provider');try{const list=(await API.request('/v1/code-sources')).filter(s=>s.host);const chosen=select.value||(list.find(s=>s.editable)||list[0])?.id||'';select.innerHTML=list.map(s=>'<option value="'+esc(s.id)+'" title="'+esc(s.host)+'">'+esc(s.name)+'</option>').join('');select.value=list.some(s=>s.id===chosen)?chosen:(list[0]?.id||'');}catch(e){$('#form-error').textContent=M.error(e);}}
-  function open(){if(!M.manage())return;loadSources();$('#drawer').classList.remove('hidden');$('#drawer aside').setAttribute('role','dialog');$('#drawer aside').setAttribute('aria-modal','true');setTimeout(()=>$('#f-name').focus(),30);}
+  // Administrators always register; others only when the site allows user repositories.
+  function canRegister(){return A.canManage()||!!(A.user()&&API.policy&&API.policy.user_repositories);}
+  function open(){if(!M.manage(canRegister()))return;loadSources();$('#drawer').classList.remove('hidden');$('#drawer aside').setAttribute('role','dialog');$('#drawer aside').setAttribute('aria-modal','true');setTimeout(()=>$('#f-name').focus(),30);}
   function close(){if(submitting)return;$('#drawer').classList.add('hidden');const q=new URLSearchParams(location.search);q.delete('new');history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));$('#add').focus();}
   $('#add').onclick=()=>{const q=new URLSearchParams(location.search);q.set('new','1');history.replaceState(null,'',location.pathname+'?'+q);open();};
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=e=>{e.preventDefault();close();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')close();if(e.key==='Tab'&&!$('#drawer').classList.contains('hidden')){const ns=[...$('#drawer').querySelectorAll('button,input,select')].filter(n=>!n.disabled);const a=ns[0],z=ns[ns.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus();}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus();}}});
   $('#f-name').addEventListener('input',()=>{$('#form-error').textContent='';});
   $('#f-sync-interval').addEventListener('change',()=>{$('#form-error').textContent='';});
-  async function submit(e){if(e)e.preventDefault();if(submitting||!M.manage()||!$('#form').reportValidity())return;let body;
+  async function submit(e){if(e)e.preventDefault();if(submitting||!M.manage(canRegister())||!$('#form').reportValidity())return;let body;
     try {const name=M.repositoryName($('#f-name').value);if(rows.some(r=>r.name===name))throw new Error(t('该仓库已登记，请到详情页修改','This repository is already registered. Edit it from its details page'));body={name,code_provider:$('#f-code-provider').value,index_mode:$('#f-index-mode').value,public_read:$('#f-ack').checked,policy:{branches:branchInput.value(),...(branchInput.usesDefault()?{default_branch:true}:{})},sync_interval_minutes:M.syncInterval($('#f-sync-interval').value)};if(body.index_mode==='monorepo')body.path_groups=pathInput.value();}
     catch(e){$('#form-error').textContent=e.message;return;}
     submitting=true;$('#submit').disabled=true;$('#submit').textContent=t('提交中','Submitting');$('#form-error').textContent='';

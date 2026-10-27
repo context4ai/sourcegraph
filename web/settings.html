@@ -62,6 +62,7 @@
         <label class="block mt-4"><input id="allow-registration" type="checkbox"> 允许其他用户登录或注册 · Allow other users to sign in or register</label>
 <label class="block mt-4">关闭注册说明（中文）<textarea id="registration-notice-zh" maxlength="1024" class="block w-full rounded-control border p-2"></textarea></label>
 <label class="block mt-4">Registration notice (English)<textarea id="registration-notice-en" maxlength="1024" class="block w-full rounded-control border p-2"></textarea></label>
+          <label class="mt-4 flex cursor-pointer items-start gap-3"><input id="allow-user-repositories" type="checkbox" class="mt-1 accent-current"><span><span class="block" data-en="Let signed-in users register repositories">允许登录用户登记仓库</span><span class="mt-1 block text-[13px] text-muted" data-en="Off by default. When on, any signed-in user can register a repository and becomes its manager; repository managers can edit, index, clean up and delete it and add or remove managers. Administrators can manage every repository.">默认关闭。开启后，登录用户都可以登记仓库并成为该仓库的管理员；仓库管理员可以修改、索引、清理和删除该仓库，并增减管理员。站点管理员可以管理所有仓库。</span></span></label>
 </fieldset>
         <div class="flex flex-wrap items-center gap-3 border-t rule pt-4">
           <p id="access-status" role="status" aria-live="polite" class="mr-auto min-w-0 break-all text-[13px] text-muted"></p>

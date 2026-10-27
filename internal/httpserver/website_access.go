@@ -31,8 +31,8 @@ func publicRead(r *http.Request) bool {
 	return false
 }
 
-func accessPolicy(c config.Config, backend, login bool) map[string]bool {
-	return map[string]bool{"public_read": backend && c.WebsitePublicRead, "public_prepare": false, "sso_enabled": backend && login}
+func accessPolicy(c config.Config, backend, login, userRepositories bool) map[string]bool {
+	return map[string]bool{"public_read": backend && c.WebsitePublicRead, "public_prepare": false, "sso_enabled": backend && login, "user_repositories": backend && userRepositories}
 }
 
 func sameOrigin(r *http.Request, configured string) bool {

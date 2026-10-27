@@ -138,7 +138,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				w.Header().Set("Allow", "GET")
 				writeError(w, "", 405, "METHOD_NOT_ALLOWED", "Use GET.")
 			} else {
-				writeJSON(w, 200, accessPolicy(c, true, browserAuth != nil))
+				writeJSON(w, 200, accessPolicy(c, true, browserAuth != nil, browserAuth != nil && settings.AllowUserRepositories()))
 			}
 			return
 		}
@@ -223,7 +223,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				r = r.WithContext(identity.WithAnonymous(r.Context(), anonymousActor(r)))
 			} else if browserAuth != nil && r.URL.Path != Prefix+"/mcp" {
 				var ok bool
-				r, ok = browserAuth.Authorize(w, r, strings.HasPrefix(r.URL.Path, Prefix+"/api/admin/") && !publicRead(r))
+				r, ok = browserAuth.Authorize(w, r, strings.HasPrefix(r.URL.Path, Prefix+"/api/admin/") && !publicRead(r) && !delegatedRoute(r))
 				if !ok {
 					return
 				}
@@ -231,6 +231,9 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				writeError(w, id, 401, "AUTHENTICATION_REQUIRED", "Service access token or browser session is required.")
 				return
 			}
+		}
+		if bearer {
+			r = r.WithContext(identity.WithAdmin(r.Context()))
 		}
 		if r.URL.Path == Prefix+"/mcp" {
 			r.Body = http.MaxBytesReader(w, r.Body, c.MaxBodyBytes)
@@ -253,6 +256,17 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 			}
 		}
 		repo := r.URL.Query().Get("repo")
+		if delegatedRoute(r) {
+			if e := authorizeDelegated(r.Context(), r, s, settings, repo); e != nil {
+				var ce *contract.Error
+				if errors.As(e, &ce) {
+					writeError(w, id, ce.HTTPStatus, ce.Code, ce.Message)
+				} else {
+					writeError(w, id, 503, "CONTROL_STATE_UNAVAILABLE", "Control store unavailable.")
+				}
+				return
+			}
+		}
 		var result any
 		var err error
 		decode := func(v any) bool {
@@ -333,6 +347,9 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				row, err = s.Repo(r.Context(), repo)
 				w.Header().Set("ETag", `"`+strconv.FormatInt(row.Revision, 10)+`"`)
 				result = row
+				if (r.URL.Path == Prefix+"/api/admin/v1/repo" || r.URL.Path == Prefix+"/v1/repo/availability") && err == nil {
+					result = viewRepository(r.Context(), row, browserAuth)
+				}
 			} else if r.URL.Path == Prefix+"/api/admin/v1/repo" && method("PATCH") {
 				var q service.Update
 				if decode(&q) {
@@ -383,6 +400,35 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				}
 				if decode(&q) {
 					result, err = s.CancelJob(r.Context(), repo, q.JobID)
+				}
+			}
+		case Prefix + "/api/admin/v1/repo/managers":
+			if method("POST") {
+				var q service.ManagerChange
+				if decode(&q) {
+					rev, e := strconv.ParseInt(strings.Trim(r.Header.Get("If-Match"), `"`), 10, 64)
+					if e != nil {
+						err = contract.Fail("PRECONDITION_REQUIRED", "If-Match revision is required.", 428)
+					} else if browserAuth == nil {
+						err = contract.Fail("SSO_DISABLED", "Managers are site users; browser login is not enabled.", 409)
+					} else {
+						if q.Add != "" {
+							if _, e := browserAuth.EnabledPerson(r.Context(), q.Add); e != nil {
+								err = contract.Fail("USER_NOT_FOUND", "Choose an existing, enabled user.", 404)
+								if !errors.Is(e, sso.ErrUserUnavailable) {
+									err = contract.Fail("AUTH_STORAGE_UNAVAILABLE", "User directory unavailable.", 503)
+								}
+							}
+						}
+						if err == nil {
+							var row control.Repository
+							row, err = s.UpdateManagers(r.Context(), repo, q, rev)
+							if err == nil {
+								w.Header().Set("ETag", `"`+strconv.FormatInt(row.Revision, 10)+`"`)
+								result = viewRepository(r.Context(), row, browserAuth)
+							}
+						}
+					}
 				}
 			}
 		case Prefix + "/api/admin/v1/repo/purge":
