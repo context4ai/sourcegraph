@@ -54,8 +54,10 @@ jobs:
             if docker exec mongo-contract mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) quit(1)'; then exit 0; fi
             sleep 2
           done
-          docker logs --tail 50 mongo-contract
           exit 1
+      - name: MongoDB container log
+        if: failure()
+        run: docker logs --tail 80 mongo-contract || true
       - run: go test -count=1 -v ./internal/storagecontract
         env:
           TEST_POSTGRES_URL: postgres://postgres:contract-test@localhost:5432/sourcegraph_test?sslmode=disable
