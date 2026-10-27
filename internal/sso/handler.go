@@ -220,7 +220,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "NOT_FOUND")
 	}
 }
+
+// siteLogin returns the sign-in page on the configured site address when a login
+// starts on another address (the Fly hostname, an alias). The login binding cookie
+// is host-only and the provider always returns to the configured address, so a
+// login started elsewhere cannot complete. The site's reverse proxy forwards the
+// original host; only the configured origin is ever used as a redirect target.
+func (h *Handler) siteLogin(r *http.Request) string {
+	site, err := url.Parse(h.config.Origin)
+	if err != nil || site.Host == "" {
+		return ""
+	}
+	host := r.Host
+	if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Host"), ",")[0]); forwarded != "" {
+		host = forwarded
+	}
+	if host == "" || strings.EqualFold(host, site.Host) {
+		return ""
+	}
+	target := safeReturn(r.URL.Query().Get("return_to"))
+	if target == "" {
+		target = "/sourcegraph/"
+	}
+	return strings.TrimSuffix(h.config.Origin, "/") + "/sourcegraph/login?return_to=" + url.QueryEscape(target)
+}
+
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
+	if target := h.siteLogin(r); target != "" {
+		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
 	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 		fail(w, 403, "CROSS_SITE_LOGIN")
 		return
