@@ -220,6 +220,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "NOT_FOUND")
 	}
 }
+
 // siteLogin returns the sign-in page on the configured site address when a login
 // starts on another address (the Fly hostname, an alias). The login binding cookie
 // is host-only and the provider always returns to the configured address, so a
