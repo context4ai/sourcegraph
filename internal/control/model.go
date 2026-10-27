@@ -131,6 +131,7 @@ type Repository struct {
 	Scopes                   map[string]ScopeState `json:"scopes,omitempty" bson:"scopes,omitempty"`
 	LastIndexedAt            time.Time             `json:"last_indexed_at,omitempty,omitzero" bson:"last_indexed_at,omitempty"`
 	LastIndexDurationSeconds float64               `json:"last_index_duration_seconds,omitempty" bson:"last_index_duration_seconds,omitempty"`
+	GitTimeoutMinutes        int                   `json:"git_timeout_minutes" bson:"git_timeout_minutes"`
 	SyncIntervalMinutes      int                   `json:"sync_interval_minutes" bson:"sync_interval_minutes"`
 	// IndexGenerated is false by default: minified JS/CSS and source maps are
 	// left out of the text index from the next build on.

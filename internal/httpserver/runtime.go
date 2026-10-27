@@ -39,6 +39,7 @@ func RuntimeWithBootstrap(c config.Config, log *slog.Logger, s *service.Service,
 func runtime(c config.Config, log *slog.Logger, s *service.Service, token string, settings *sitesettings.Service, bootstrap *sso.Bootstrap, auth ...*sso.Handler) http.Handler {
 	fallback := New(c, log)
 	limits := &websiteLimits{}
+	mcpserver.ConfigureListener(c.ListenHost)
 	mcpHandler := mcpserver.New(s)
 	// Discovery routing filters tools; keep this independent invocation guard
 	// as well. CanPrepare only reads the already-authenticated request context.
@@ -328,7 +329,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 						if q.SyncIntervalMinutes != nil {
 							interval = *q.SyncIntervalMinutes
 						}
-						result, err = s.RegisterWithProvider(r.Context(), q.Name, policy, interval, q.IndexMode, q.PathGroups, q.PublicRead, q.CodeProvider, r.Header.Get("Idempotency-Key"))
+						result, err = s.RegisterWithGitTimeout(r.Context(), q.Name, policy, interval, q.IndexMode, q.PathGroups, q.PublicRead, q.CodeProvider, q.GitTimeoutMinutes, r.Header.Get("Idempotency-Key"))
 					}
 					status = 202
 				}

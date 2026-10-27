@@ -2,6 +2,7 @@ package sitesettings
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -28,7 +29,7 @@ func New(ctx context.Context, store Store, publicReadSeed bool) (*Service, error
 	s := &Service{store: store}
 	now := time.Now().UTC()
 	records := []Record{
-		{Name: RepositoryDefaultsName, Revision: 1, Values: map[string]any{"retention_mode": "days", "retention_days": 30, "retention_count": 20}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
+		{Name: RepositoryDefaultsName, Revision: 1, Values: map[string]any{"git_timeout_minutes": 15, "retention_mode": "days", "retention_days": 30, "retention_count": 20}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 		{Name: AccessName, Revision: 1, Values: map[string]any{"public_read": publicReadSeed, "allow_registration": false, "registration_notice_zh": DefaultNoticeZH, "registration_notice_en": DefaultNoticeEN, "allow_user_repositories": false}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 		{Name: CodeSourceName, Revision: 1, Values: map[string]any{"name": "", "host": "", "username": ""}, UpdatedAt: now, UpdatedBy: "system:bootstrap"},
 	}
@@ -50,6 +51,10 @@ func (s *Service) Snapshot() Snapshot {
 	}
 	return Snapshot{}
 }
+func (s *Service) GitTimeoutMinutes() int {
+	return s.Snapshot().RepositoryDefaults.Values.GitTimeoutMinutes
+}
+
 func (s *Service) PublicRead() bool { return s.Snapshot().Access.Values.PublicRead }
 
 // AllowUserRepositories reports whether ordinary signed-in users may register repositories.
@@ -123,6 +128,13 @@ func (s *Service) Update(ctx context.Context, section string, revision int64, da
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.Snapshot()
+	if section == RepositoryDefaultsName {
+		var fields map[string]json.RawMessage
+		_ = json.Unmarshal(data, &fields) // decodeValues has already validated the object.
+		if _, present := fields["git_timeout_minutes"]; !present {
+			values["git_timeout_minutes"] = next.RepositoryDefaults.Values.GitTimeoutMinutes
+		}
+	}
 	if next.Access.Revision == 0 || next.RepositoryDefaults.Revision == 0 || next.CodeSource.Revision == 0 {
 		return Record{}, contract.Fail("SETTINGS_UNAVAILABLE", "Site settings are not initialized.", 503)
 	}

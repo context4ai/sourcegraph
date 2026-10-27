@@ -82,6 +82,7 @@ func prepareBranch(r control.Repository, revision string, beforeSync bool) (stri
 }
 
 func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j control.Job) error {
+	timeout := r.GitTimeoutMinutes
 	groups := r.WorkGroups()
 	if j.Group != "" {
 		groups = []string{j.Group}
@@ -108,6 +109,7 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 			}
 			var err error
 			r, err = s.DB.Get(ctx, r.Name)
+			r.GitTimeoutMinutes = timeout
 			if err != nil {
 				return err
 			}

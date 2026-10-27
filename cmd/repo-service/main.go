@@ -9,11 +9,13 @@ import (
 	"github.com/context4ai/sourcegraph/internal/config"
 	"github.com/context4ai/sourcegraph/internal/control"
 	"github.com/context4ai/sourcegraph/internal/httpserver"
+	"github.com/context4ai/sourcegraph/internal/secretstore"
 	"github.com/context4ai/sourcegraph/internal/service"
 	"github.com/context4ai/sourcegraph/internal/sitesettings"
 	"github.com/context4ai/sourcegraph/internal/sqlstore"
 	"github.com/context4ai/sourcegraph/internal/sso"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -63,6 +65,7 @@ func run() error {
 	var repos service.Store
 	var auth sso.Store
 	var settingsDB sitesettings.Store
+	var openSecrets func() (*secretstore.Store, error)
 	driver := env("SOURCEGRAPH_DATABASE", "sqlite")
 	dsn := os.Getenv("DATABASE_URL")
 	if driver == "mongodb" {
@@ -74,6 +77,7 @@ func run() error {
 		repos = db
 		auth = &sso.MongoStore{DB: db.AuthDatabase()}
 		settingsDB = &sitesettings.MongoStore{DB: db.AuthDatabase()}
+		openSecrets = func() (*secretstore.Store, error) { return secretstore.New(ctx, db.AuthDatabase()) }
 	} else {
 		if driver == "sqlite" && dsn == "" {
 			dsn = filepath.Join(root, "sourcegraph.db")
@@ -100,6 +104,7 @@ func run() error {
 		repos = &control.SQL{DB: db}
 		auth = &sso.SQLStore{DB: db}
 		settingsDB = &sitesettings.SQLStore{DB: db}
+		openSecrets = func() (*secretstore.Store, error) { return secretstore.NewSQL(ctx, db) }
 	}
 	exe, e := os.Executable()
 	if e != nil {
@@ -111,6 +116,22 @@ func run() error {
 		return e
 	}
 	defer backend.Close()
+	vault, e := openSecrets()
+	if e != nil {
+		return e
+	}
+	token := os.Getenv("SOURCEGRAPH_API_TOKEN")
+	if token != "" && len(token) < 32 {
+		return errors.New("service API credential must contain at least 32 characters")
+	}
+	savedToken, e := vault.Ensure(ctx, "service-api-token", []byte(token))
+	if e != nil {
+		return e
+	}
+	if len(savedToken) < 32 {
+		return errors.New("persisted service API credential is invalid")
+	}
+	token = string(savedToken)
 	minimum, e := strconv.ParseUint(env("SOURCEGRAPH_MIN_FREE_BYTES", "1073741824"), 10, 64)
 	if e != nil {
 		return errors.New("invalid free disk threshold")
@@ -146,7 +167,7 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	bootstrap, e := sso.NewCommunity(ctx, root, origin, auth, settings)
+	bootstrap, e := sso.NewCommunity(ctx, root, origin, auth, settings, vault)
 	if e != nil {
 		return e
 	}
@@ -165,8 +186,13 @@ func run() error {
 	defer background.Stop()
 	c := config.Defaults()
 	c.DataRoot = root
-	handler := httpserver.RuntimeWithBootstrap(c, background.Logger, backend, os.Getenv("SOURCEGRAPH_API_TOKEN"), settings, bootstrap)
-	server := &http.Server{Addr: env("SOURCEGRAPH_LISTEN", "0.0.0.0:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 120 * time.Second, WriteTimeout: 125 * time.Second, IdleTimeout: 60 * time.Second}
+	listen := env("SOURCEGRAPH_LISTEN", "0.0.0.0:8080")
+	c.ListenHost, _, e = net.SplitHostPort(listen)
+	if e != nil {
+		return errors.New("invalid listen address")
+	}
+	handler := httpserver.RuntimeWithBootstrap(c, background.Logger, backend, token, settings, bootstrap)
+	server := &http.Server{Addr: listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 120 * time.Second, WriteTimeout: 125 * time.Second, IdleTimeout: 60 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
 	slog.Info("listening", "address", server.Addr, "origin", origin, "database", driver, "revision", buildRevision)

@@ -27,9 +27,10 @@ var (
 )
 
 type RepositoryDefaults struct {
-	RetentionMode  string `json:"retention_mode"`
-	RetentionDays  int    `json:"retention_days"`
-	RetentionCount int    `json:"retention_count"`
+	GitTimeoutMinutes int    `json:"git_timeout_minutes"`
+	RetentionMode     string `json:"retention_mode"`
+	RetentionDays     int    `json:"retention_days"`
+	RetentionCount    int    `json:"retention_count"`
 }
 type Access struct {
 	PublicRead           bool   `json:"public_read"`
@@ -94,11 +95,14 @@ func validSection(section string) bool {
 func decodeValues(section string, data []byte) (map[string]any, error) {
 	switch section {
 	case RepositoryDefaultsName:
-		var v RepositoryDefaults
+		v := RepositoryDefaults{GitTimeoutMinutes: 15}
 		if contract.DecodeObject(data, &v) != nil || (v.RetentionMode != "days" && v.RetentionMode != "count") || v.RetentionDays < 1 || v.RetentionDays > 365 || v.RetentionCount < 1 || v.RetentionCount > 4096 {
 			return nil, contract.Fail("INVALID_SETTINGS", "Use retention_mode days or count, retention_days 1..365 and retention_count 1..4096; all fields are required.", 400)
 		}
-		return map[string]any{"retention_mode": v.RetentionMode, "retention_days": v.RetentionDays, "retention_count": v.RetentionCount}, nil
+		if v.GitTimeoutMinutes != 15 && v.GitTimeoutMinutes != 30 && v.GitTimeoutMinutes != 45 && v.GitTimeoutMinutes != 60 {
+			return nil, contract.Fail("INVALID_SETTINGS", "Git timeout must be 15, 30, 45 or 60 minutes.", 400)
+		}
+		return map[string]any{"git_timeout_minutes": v.GitTimeoutMinutes, "retention_mode": v.RetentionMode, "retention_days": v.RetentionDays, "retention_count": v.RetentionCount}, nil
 	case AccessName:
 		var input struct {
 			PublicRead            *bool  `json:"public_read"`
@@ -135,7 +139,7 @@ func decodeValues(section string, data []byte) (map[string]any, error) {
 func assign(out *Snapshot, section string, meta Metadata, values map[string]any) {
 	switch section {
 	case RepositoryDefaultsName:
-		out.RepositoryDefaults = RepositorySection{Metadata: meta, Values: RepositoryDefaults{values["retention_mode"].(string), values["retention_days"].(int), values["retention_count"].(int)}}
+		out.RepositoryDefaults = RepositorySection{Metadata: meta, Values: RepositoryDefaults{values["git_timeout_minutes"].(int), values["retention_mode"].(string), values["retention_days"].(int), values["retention_count"].(int)}}
 	case AccessName:
 		out.Access = AccessSection{Metadata: meta, Values: Access{PublicRead: values["public_read"].(bool), AllowRegistration: values["allow_registration"].(bool), RegistrationNoticeZH: values["registration_notice_zh"].(string), RegistrationNoticeEN: values["registration_notice_en"].(string), AllowUserRepositories: values["allow_user_repositories"].(bool)}}
 	case CodeSourceName:

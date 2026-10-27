@@ -71,7 +71,7 @@ func (s *Store) HydratePaths(ctx context.Context, repo, commit string, paths []s
 	if !filepath.IsAbs(o.CredentialHelper) || strings.ContainsAny(o.CredentialHelper, " \t\r\n\"'\\") || (o.Token == "" && !o.Anonymous) {
 		return contract.Fail("GIT_CREDENTIAL_UNAVAILABLE", "Git credential is not configured.", 503)
 	}
-	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
+	if o.Timeout <= 0 || o.Timeout > 60*time.Minute {
 		o.Timeout = 15 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, o.Timeout)
@@ -94,7 +94,7 @@ func (s *Store) HydrateEntries(ctx context.Context, repo, commit string, entries
 	if !strings.HasPrefix(o.Host, "https://") {
 		return contract.Fail("CODE_SOURCE_NOT_CONFIGURED", "The repository's code source has no host.", 503)
 	}
-	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
+	if o.Timeout <= 0 || o.Timeout > 60*time.Minute {
 		o.Timeout = 15 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, o.Timeout)

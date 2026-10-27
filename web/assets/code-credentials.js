@@ -14,11 +14,11 @@
   const box=panel.querySelector('.credential-forms');
   function tokenStatus(v,source){
    if(!v.configured)return source?.anonymous?t('未配置 · 公开仓库可匿名拉取','Not configured · public repositories are fetched anonymously'):t('未配置','Not configured');
-   const labels={ready:['已配置','Configured'],expired:['已过期，请更新','Expired; update required'],expiring:['将在 7 天内过期，请更新','Expires within 7 days; update required'],invalid:['认证失败，请更新','Authentication rejected; update required']};
+   const labels={unreadable:['无法解密，请重新填写令牌','Cannot decrypt; enter a new token'],ready:['已配置','Configured'],expired:['已过期，请更新','Expired; update required'],expiring:['将在 7 天内过期，请更新','Expires within 7 days; update required'],invalid:['认证失败，请更新','Authentication rejected; update required']};
    const text=labels[v.state]||labels.ready;
    return t(text[0],text[1])+(!v.expires_at?t(' · 未填写过期时间',' · No expiry provided'):'')+(v.source==='environment'?t(' · 来自部署环境变量',' · From the deployment environment'):'');
   }
-  function statusClass(v){return ['expired','invalid'].includes(v.state)?'text-danger':v.state==='expiring'?'text-amber-600':'text-muted';}
+  function statusClass(v){return ['expired','invalid','unreadable'].includes(v.state)?'text-danger':v.state==='expiring'?'text-amber-600':'text-muted';}
   function hostLine(source){
    if(source.host)return t('从 ','Fetches from ')+source.host+t(' 拉取代码','');
    return global&&source.editable?t('尚未填写主机；填写后才能登记这个代码源的仓库','No host yet; set one before registering repositories from this source'):t('管理员尚未配置主机，暂不能登记这个代码源的仓库','An administrator has not configured a host; repositories cannot use this source yet');

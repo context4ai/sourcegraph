@@ -39,3 +39,8 @@ Use the Fly dashboard Secrets UI, or `fly secrets import --app context4ai-source
 The sign-in screen follows the site language and theme. With no configured provider it explains the missing Google/GitHub configuration and links to this setup guide; configured providers appear as sign-in buttons. A failed provider lookup offers retry without blocking the public browsing link. Login preserves the requested local Source Graph page. Sign-in must start on the configured site address because the provider always returns there and the login cookie belongs to one host. A login started on another address, such as the Fly hostname or an alias reached without the site's proxy, is first sent to the sign-in screen on the site address; the proxy forwards the original host in `X-Forwarded-Host`.
 
 Registration denial is a separate, server-rendered HTTP 403 page with the configured bilingual notice, a project link, and a five-second return to the validated previous page. This is distinct from missing OAuth configuration and provider lookup failures.
+
+
+## Persisted provider configuration
+
+Google/GitHub client IDs and secrets are imported together into encrypted database storage when first configured. Restarting or replacing the host uses the saved configuration even without the old environment values. Database records take precedence over bootstrap environment values. Keep the same public origin and provider callback allowlist when moving a deployment. See [application secrets](deployment.md#application-secrets) before credential rotation or rollback.

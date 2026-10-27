@@ -40,6 +40,11 @@ func Start(parent context.Context, backend Backend, settings Settings, logger *s
 	if source, ok := settings.(interface{ CodeSourceOverride() codesources.Override }); ok {
 		codesources.UseSettings(source.CodeSourceOverride)
 	}
+	if source, ok := settings.(interface{ GitTimeoutMinutes() int }); ok {
+		if target, ok := backend.(interface{ UseGitTimeoutDefault(func() int) }); ok {
+			target.UseGitTimeoutDefault(source.GitTimeoutMinutes)
+		}
+	}
 	start(func() { backend.PublishObservations(ctx) })
 	start(func() { settings.RunRefresh(ctx, logger) })
 	if !options.DisableRepositoryWorkers {

@@ -10,7 +10,6 @@ import (
 	"html/template"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 )
@@ -37,8 +36,12 @@ func (h *Handler) admitUser(ctx context.Context, u User) (User, bool, error) {
 	u, e = h.store.UpsertUser(ctx, u)
 	return u, first, e
 }
-func NewCommunity(ctx context.Context, root, origin string, store Store, settings *sitesettings.Service) (*Bootstrap, error) {
+func NewCommunity(ctx context.Context, root, origin string, store Store, settings *sitesettings.Service, vault ...CommunitySecrets) (*Bootstrap, error) {
 	b := &Bootstrap{store: store}
+	credentials, e := communityCredentials(ctx, vault)
+	if e != nil {
+		return nil, e
+	}
 	cfg := Config{Enabled: true, Origin: origin, ClientID: "community", SigningAlgorithm: "RS256"}
 	if e := cfg.Validate(); e != nil {
 		return nil, e
@@ -52,7 +55,7 @@ func NewCommunity(ctx context.Context, root, origin string, store Store, setting
 		}
 	}
 	primary := &Handler{config: cfg, store: store, Settings: settings, Providers: map[string]*Handler{}}
-	if id, secret := os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"); id != "" && secret != "" {
+	if id, secret := credentials.GoogleID, credentials.GoogleSecret; id != "" && secret != "" {
 		c := cfg
 		c.ClientID = id
 		h, e := newHandler(ctx, c, secret, store, "https://accounts.google.com")
@@ -64,7 +67,7 @@ func NewCommunity(ctx context.Context, root, origin string, store Store, setting
 		h.oauth.RedirectURL = origin + Prefix + "google/callback"
 		primary.Providers["google"] = h
 	}
-	if id, secret := os.Getenv("GITHUB_CLIENT_ID"), os.Getenv("GITHUB_CLIENT_SECRET"); id != "" && secret != "" {
+	if id, secret := credentials.GitHubID, credentials.GitHubSecret; id != "" && secret != "" {
 		h := &Handler{config: cfg, store: store, Settings: settings, Provider: "github", issuer: "https://github.com", client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, oauth: oauth2.Config{ClientID: id, ClientSecret: secret, RedirectURL: origin + Prefix + "github/callback", Endpoint: oauth2.Endpoint{AuthURL: "https://github.com/login/oauth/authorize", TokenURL: "https://github.com/login/oauth/access_token", AuthStyle: oauth2.AuthStyleInParams}, Scopes: []string{"read:user"}}}
 		primary.Providers["github"] = h
 	}

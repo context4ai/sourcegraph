@@ -8,8 +8,22 @@ import (
 	"github.com/context4ai/sourcegraph/internal/gitstore"
 	"github.com/context4ai/sourcegraph/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"net"
 	"net/http"
 )
+
+// networkListener records whether the service listens beyond loopback. The
+// SDK's DNS-rebinding protection rejects requests that arrive on a loopback
+// address with a public Host; that guards localhost-only servers, but behind
+// a reverse proxy forwarding to loopback every request
+// arrives that way. A network-exposed listener gains nothing from the check.
+var networkListener bool
+
+// ConfigureListener must be called before handlers are created.
+func ConfigureListener(listenHost string) {
+	ip := net.ParseIP(listenHost)
+	networkListener = !(listenHost == "localhost" || (ip != nil && ip.IsLoopback()))
+}
 
 func New(s *service.Service) http.Handler {
 	return newHandler(s, nil, true)
@@ -79,7 +93,7 @@ func newHandler(s *service.Service, authorize func(context.Context) error, inclu
 			return s.PrepareRevision(ctx, in.Repo, in.Revision, in.Group, in.Key)
 		}, includePrepare)
 	}
-	return pluginConnectionHandler(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}))
+	return pluginConnectionHandler(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: networkListener}))
 }
 
 // register keeps the shared service result/error contract while exposing only

@@ -76,3 +76,6 @@ Settings apply in this order, later non-empty fields winning:
 Token routes need a browser session, and writes are CSRF-protected; API tokens cannot manage them. GET returns `configured`, `expires_at`, `revision`, `state` and `source` per source, never the token. PUT updates one source with `{kind, revision, token?, expires_at, clear?}`: an omitted `token` keeps the current one, while an omitted or null `expires_at` clears the expiry; a stale `revision` returns `REVISION_CONFLICT`.
 
 Tokens are stored encrypted with AES-256-GCM; see [deployment](deployment.md) for the encryption key and backups.
+
+
+If a token cannot be decrypted, its state is `unreadable`. Enter a replacement or clear it; editing metadata alone cannot repair it. Status never returns plaintext. The encryption key is imported from the old deployment on upgrade and then kept in the database; new instances reuse it.

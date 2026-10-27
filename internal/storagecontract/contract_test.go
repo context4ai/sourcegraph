@@ -1,9 +1,11 @@
 package storagecontract
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/context4ai/sourcegraph/internal/control"
+	"github.com/context4ai/sourcegraph/internal/secretstore"
 	"github.com/context4ai/sourcegraph/internal/service"
 	"github.com/context4ai/sourcegraph/internal/sitesettings"
 	"github.com/context4ai/sourcegraph/internal/sqlstore"
@@ -33,6 +35,7 @@ func TestBackendContract(t *testing.T) {
 			var repos service.Store
 			var auth sso.Store
 			var settings sitesettings.Store
+			var secrets func(...secretstore.KeySeed) (*secretstore.Store, error)
 			if driver == "mongodb" {
 				db, e := control.Connect(ctx, os.Getenv("TEST_MONGODB_URL"))
 				if e != nil {
@@ -42,6 +45,9 @@ func TestBackendContract(t *testing.T) {
 				repos = db
 				auth = &sso.MongoStore{DB: db.AuthDatabase()}
 				settings = &sitesettings.MongoStore{DB: db.AuthDatabase()}
+				secrets = func(seed ...secretstore.KeySeed) (*secretstore.Store, error) {
+					return secretstore.New(ctx, db.AuthDatabase(), seed...)
+				}
 			} else {
 				dsn := os.Getenv("TEST_POSTGRES_URL")
 				if driver == "sqlite" {
@@ -55,6 +61,9 @@ func TestBackendContract(t *testing.T) {
 				repos = &control.SQL{DB: db}
 				auth = &sso.SQLStore{DB: db}
 				settings = &sitesettings.SQLStore{DB: db}
+				secrets = func(seed ...secretstore.KeySeed) (*secretstore.Store, error) {
+					return secretstore.NewSQL(ctx, db, seed...)
+				}
 			}
 			r := control.Repository{ID: control.ID("context4ai/context"), Name: "context4ai/context", Revision: 1, JobFailures: []control.JobFailure{{ID: "failed-task", Code: "INDEX_FAILED", Attempt: 2}}}
 			if e := repos.Create(ctx, r); e != nil {
@@ -98,6 +107,27 @@ func TestBackendContract(t *testing.T) {
 			}
 			var wg sync.WaitGroup
 			var mu sync.Mutex
+			key := bytes.Repeat([]byte{42}, 32)
+			vault, e := secrets(func() ([]byte, error) { return key, nil })
+			if e != nil {
+				t.Fatal(e)
+			}
+			if !bytes.Equal(vault.Key(), key) {
+				t.Fatal("legacy key not imported")
+			}
+			token, e := vault.Ensure(ctx, "service-api-token", []byte("existing-service-token-long-enough-for-contract"))
+			if e != nil {
+				t.Fatal(e)
+			}
+			fresh, e := secrets(func() ([]byte, error) { t.Fatal("existing key must not read host seed"); return nil, nil })
+			if e != nil {
+				t.Fatal(e)
+			}
+			recovered, e := fresh.Ensure(ctx, "service-api-token", []byte("must-not-replace"))
+			if e != nil || !bytes.Equal(token, recovered) {
+				t.Fatal("secret changed across reopen", e)
+			}
+
 			winners := 0
 			for _, id := range []string{"google-owner", "github-owner"} {
 				wg.Add(1)

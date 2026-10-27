@@ -170,9 +170,9 @@ func (s *Service) executeClaimed(parent context.Context, name string, j control.
 	if s.StorageSettings().CleanupPending {
 		return
 	}
-	budget := 45 * time.Minute
+	budget := 60 * time.Minute
 	if j.Kind == "prepare" {
-		budget = 16 * 45 * time.Minute
+		budget = 16 * 60 * time.Minute
 	} // up to 16 sequential path groups
 	ctx, cancel := context.WithTimeout(parent, budget)
 	defer cancel()
@@ -192,7 +192,14 @@ func (s *Service) executeClaimed(parent context.Context, name string, j control.
 	r, e := s.DB.Get(ctx, name)
 	if e == nil {
 		if _, e = r.Owned(j, time.Now().UTC()); e == nil {
-			e = prepare(ctx, r, j)
+			// Resolve inheritance once. Every Git stage of this job uses this snapshot.
+			r.GitTimeoutMinutes = s.gitTimeoutMinutes(r)
+			work, stop := context.WithTimeout(ctx, gitJobBudget(r.GitTimeoutMinutes, j.Kind))
+			e = prepare(work, r, j)
+			if work.Err() != nil {
+				e = work.Err()
+			}
+			stop()
 		}
 	}
 	if ctx.Err() != nil {
