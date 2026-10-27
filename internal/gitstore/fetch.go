@@ -68,7 +68,7 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 	if !strings.HasPrefix(o.Host, "https://") {
 		return contract.Fail("CODE_SOURCE_NOT_CONFIGURED", "The repository's code source has no host.", 503)
 	}
-	if o.Timeout <= 0 || o.Timeout > 30*time.Minute {
+	if o.Timeout <= 0 || o.Timeout > 60*time.Minute {
 		o.Timeout = 15 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, o.Timeout)

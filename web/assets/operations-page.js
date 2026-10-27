@@ -14,9 +14,9 @@
   function health(){
     if(data?.credential_warnings?.length)return data.credential_warnings.map(w=>{
       const name=w.kind==='git'?'Git':'GitHub';
-      const expired=w.state==='expired'||w.state==='invalid';
+      const expired=w.state==='expired'||w.state==='invalid'||w.state==='unreadable';
       const days=w.expires_at?Math.max(0,Math.ceil((Date.parse(w.expires_at)-Date.now())/86400000)):0;
-      const text=expired?t('全局 '+name+' 凭证已经失效，请尽快更新','Global '+name+' credential is invalid or expired; update it soon'):w.state==='unavailable'?t('全局凭证状态暂时无法读取','Global credential status is unavailable'):t('全局 '+name+' 凭证即将于 '+days+' 天后失效，请更新','Global '+name+' credential expires in '+days+' days; update it');
+      const text=w.state==='unreadable'?t('全局 '+name+' 凭证无法解密，请重新填写令牌','Global '+name+' credential cannot be decrypted; enter a new token'):expired?t('全局 '+name+' 凭证已经失效，请尽快更新','Global '+name+' credential is invalid or expired; update it soon'):w.state==='unavailable'?t('全局凭证状态暂时无法读取','Global credential status is unavailable'):t('全局 '+name+' 凭证即将于 '+days+' 天后失效，请更新','Global '+name+' credential expires in '+days+' days; update it');
       return '<span class="block '+(expired?'text-danger':'text-amber-600')+'">'+esc(text)+'</span>';
     }).join('');
     if(!repos)return t('服务正常','Service is up');

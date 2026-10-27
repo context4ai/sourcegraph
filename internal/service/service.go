@@ -32,6 +32,7 @@ type Store interface {
 	NextGeneration(context.Context) (uint32, error)
 }
 type Service struct {
+	gitTimeoutDefault   func() int
 	linkManifests       linkManifestCache
 	Plugins             *wasmplugin.Host
 	pluginSnapshots     sync.RWMutex
@@ -162,6 +163,13 @@ func (s *Service) RegisterWithVisibility(ctx context.Context, name string, p con
 }
 
 func (s *Service) RegisterWithProvider(ctx context.Context, name string, p control.Policy, interval int, mode string, groups []control.PathGroup, publicRead *bool, provider, key string) (control.Repository, error) {
+	return s.RegisterWithGitTimeout(ctx, name, p, interval, mode, groups, publicRead, provider, 0, key)
+}
+
+func (s *Service) RegisterWithGitTimeout(ctx context.Context, name string, p control.Policy, interval int, mode string, groups []control.PathGroup, publicRead *bool, provider string, timeout int, key string) (control.Repository, error) {
+	if err := control.ValidateGitTimeout(timeout); err != nil {
+		return control.Repository{}, err
+	}
 	if provider == "" {
 		provider = defaultCodeProvider
 	}
@@ -192,6 +200,9 @@ func (s *Service) RegisterWithProvider(ctx context.Context, name string, p contr
 	if provider != defaultCodeProvider {
 		registrationDigest = digest([]any{registrationDigest, provider})
 	}
+	if timeout != 0 {
+		registrationDigest = digest([]any{registrationDigest, timeout})
+	}
 	if e := gitstore.ValidateRepo(name); e != nil {
 		return control.Repository{}, e
 	}
@@ -206,7 +217,7 @@ func (s *Service) RegisterWithProvider(ctx context.Context, name string, p contr
 	defer s.mu.Unlock()
 	if existing, e := s.DB.Get(ctx, name); e == nil {
 		for _, r := range existing.Receipts {
-			if r.Key == k && (r.Digest == registrationDigest || ((publicRead == nil || *publicRead) && mode == control.IndexModeFull && existing.EffectiveIndexMode() == mode && interval == control.DefaultSyncIntervalMinutes && existing.SyncInterval() == interval && r.Digest == digest(p))) {
+			if r.Key == k && (r.Digest == registrationDigest || (timeout == 0 && existing.GitTimeoutMinutes == 0 && (publicRead == nil || *publicRead) && mode == control.IndexModeFull && existing.EffectiveIndexMode() == mode && interval == control.DefaultSyncIntervalMinutes && existing.SyncInterval() == interval && r.Digest == digest(p))) {
 				return projectRepository(s.markStorage(existing)), nil
 			}
 		}
@@ -217,7 +228,7 @@ func (s *Service) RegisterWithProvider(ctx context.Context, name string, p contr
 			return control.Repository{}, e
 		}
 	}
-	r := control.Repository{CodeProvider: provider, CodeHost: source.Host, CreatorID: identity.UserID(ctx), PublicRead: publicRead, IndexMode: mode, PathGroups: groups, ID: control.ID(name), Name: name, Revision: 1, PolicyRevision: 1, Enabled: true, Policy: p, SyncIntervalMinutes: interval, Updated: time.Now().UTC(), Heads: map[string]string{}, Versions: []control.Version{}}
+	r := control.Repository{GitTimeoutMinutes: timeout, CodeProvider: provider, CodeHost: source.Host, CreatorID: identity.UserID(ctx), PublicRead: publicRead, IndexMode: mode, PathGroups: groups, ID: control.ID(name), Name: name, Revision: 1, PolicyRevision: 1, Enabled: true, Policy: p, SyncIntervalMinutes: interval, Updated: time.Now().UTC(), Heads: map[string]string{}, Versions: []control.Version{}}
 	for _, group := range r.WorkGroups() {
 		groupKey := k
 		if group != "" {

@@ -105,3 +105,10 @@ Carry repository, original full SHA and path together. Do not reconstruct SHAs o
 `REVISION_NOT_ELIGIBLE` means the revision is absent from this repository's currently observed versions. Verify the repository/SHA pair, monitored branches, synchronization and retention before assuming expiry; never substitute another baseline.
 
 HTTP availability includes bounded historical `job_failures` summaries; see [diagnostic retention](deployment.md#task-and-query-diagnostics). MCP availability with a specific `job_id` returns `job_failure` and `job_lookup.state=archived_failure` when the live task was pruned but its failure summary remains. It is historical evidence, not current readiness or a runnable task. Missing history does not imply success.
+
+
+## Git timeout settings
+
+`repository_defaults.git_timeout_minutes` sets the global default (15 minutes initially); valid global values are 15, 30, 45 and 60. Existing settings without this field read as 15. An older settings client that omits the field preserves its saved value.
+
+Registration and repository update accept `git_timeout_minutes`: 0 means inherit the current global value, and 15/30/45/60 set an override. Omitted registration values inherit; omitted PATCH values preserve the current setting. Repository details return the stored value. Preview/CAS and registration idempotency include the timeout. Only new tasks use edits; changing a timeout preserves running tasks and published indexes. The setting covers Git fetching and hydration and can be changed from system settings, registration, or repository settings.

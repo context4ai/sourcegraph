@@ -54,5 +54,5 @@ func (s *Service) fetchOptions(r control.Repository, token string) gitstore.Fetc
 	if host == "" {
 		host = source.Host
 	}
-	return gitstore.FetchOptions{CredentialHelper: s.Helper, Token: token, Host: host, Username: source.Username, Anonymous: source.Anonymous, Branches: r.Policy.Branches, MinFreeBytes: s.MinFree}
+	return gitstore.FetchOptions{Timeout: time.Duration(s.gitTimeoutMinutes(r)) * time.Minute, CredentialHelper: s.Helper, Token: token, Host: host, Username: source.Username, Anonymous: source.Anonymous, Branches: r.Policy.Branches, MinFreeBytes: s.MinFree}
 }

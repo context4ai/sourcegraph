@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/context4ai/sourcegraph/internal/secretstore"
 	"os"
 	"path/filepath"
 	"sync"
@@ -141,4 +142,12 @@ func (s *FileStore) Clear(context.Context) error {
 		return unavailable
 	}
 	return nil
+}
+
+func (s MongoStore) EncryptionKey(ctx context.Context, seed func() ([]byte, error)) ([]byte, error) {
+	v, e := secretstore.New(ctx, s.Collection.Database(), secretstore.KeySeed(seed))
+	if e != nil {
+		return nil, e
+	}
+	return v.Key(), nil
 }

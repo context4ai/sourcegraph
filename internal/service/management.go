@@ -9,6 +9,7 @@ import (
 )
 
 type Update struct {
+	GitTimeoutMinutes   *int                 `json:"git_timeout_minutes,omitempty"`
 	PublicRead          *bool                `json:"public_read,omitempty"`
 	PathGroups          *[]control.PathGroup `json:"path_groups,omitempty"`
 	SyncIntervalMinutes *int                 `json:"sync_interval_minutes,omitempty"`
@@ -23,6 +24,11 @@ type Update struct {
 func validateUpdate(u Update) error {
 	if err := u.Policy.Validate(); err != nil {
 		return err
+	}
+	if u.GitTimeoutMinutes != nil {
+		if err := control.ValidateGitTimeout(*u.GitTimeoutMinutes); err != nil {
+			return err
+		}
 	}
 	if u.SyncIntervalMinutes != nil {
 		return control.ValidateSyncInterval(*u.SyncIntervalMinutes)
@@ -96,6 +102,9 @@ func (s *Service) Update(ctx context.Context, name string, u Update, revision in
 	intervalChanged := u.SyncIntervalMinutes != nil && *u.SyncIntervalMinutes != r.SyncInterval()
 	if u.SyncIntervalMinutes != nil {
 		r.SyncIntervalMinutes = *u.SyncIntervalMinutes
+	}
+	if u.GitTimeoutMinutes != nil {
+		r.GitTimeoutMinutes = *u.GitTimeoutMinutes
 	}
 	if u.PublicRead != nil {
 		value := *u.PublicRead

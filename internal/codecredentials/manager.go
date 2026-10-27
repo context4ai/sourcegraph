@@ -22,6 +22,8 @@ import (
 
 const Global = "global"
 
+var unreadable = contract.Fail("CREDENTIAL_RECONFIGURATION_REQUIRED", "Credential cannot be decrypted; enter a new token.", 409)
+
 type Record struct {
 	ID         string     `bson:"_id"`
 	Revision   int64      `bson:"revision"`
@@ -61,7 +63,13 @@ type Manager struct {
 func New(root string, store Store) (*Manager, error) {
 	var key []byte
 	var err error
-	if raw := os.Getenv("SOURCEGRAPH_CREDENTIAL_KEY"); raw != "" {
+	if persistent, ok := store.(interface {
+		EncryptionKey(context.Context, func() ([]byte, error)) ([]byte, error)
+	}); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		key, err = persistent.EncryptionKey(ctx, func() ([]byte, error) { return legacyKey(root) })
+	} else if raw := os.Getenv("SOURCEGRAPH_CREDENTIAL_KEY"); raw != "" {
 		key, err = base64.StdEncoding.DecodeString(raw)
 	} else {
 		path := filepath.Join(root, "code-credentials.key")
@@ -139,11 +147,11 @@ func (m *Manager) load(ctx context.Context, owner, kind string) (Record, string,
 	}
 	n := m.aead.NonceSize()
 	if len(r.Ciphertext) < n {
-		return r, "", unavailable
+		return r, "", unreadable
 	}
 	plain, err := m.aead.Open(nil, r.Ciphertext[:n], r.Ciphertext[n:], []byte(id))
 	if err != nil {
-		return r, "", unavailable
+		return r, "", unreadable
 	}
 	return r, string(plain), nil
 }
@@ -172,6 +180,10 @@ func (m *Manager) Status(ctx context.Context, owner string) (map[string]Status, 
 	out := map[string]Status{}
 	for _, kind := range codesources.Kinds() {
 		r, t, err := m.load(ctx, owner, kind)
+		if errors.Is(err, unreadable) {
+			out[kind] = Status{Revision: r.Revision, Configured: true, Expires: r.Expires, State: "unreadable", Source: "saved", Retired: codesources.IsAlias(kind)}
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -188,7 +200,7 @@ func (m *Manager) Status(ctx context.Context, owner string) (map[string]Status, 
 }
 func (m *Manager) Save(ctx context.Context, owner, kind string, in Input) (Status, error) {
 	r, token, err := m.load(ctx, owner, kind)
-	if err != nil {
+	if err != nil && !(errors.Is(err, unreadable) && (in.Token != nil || in.Clear)) {
 		return Status{}, err
 	}
 	if r.Revision != in.Revision {
@@ -245,6 +257,9 @@ func (m *Manager) Candidates(ctx context.Context, owner string, provider ...stri
 	for _, who := range owners {
 		for _, kind := range []string{kind} {
 			r, t, err := m.load(ctx, who, kind)
+			if errors.Is(err, unreadable) {
+				continue
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -302,7 +317,7 @@ func (m *Manager) Warnings(ctx context.Context) []Warning {
 		if !ok {
 			continue
 		}
-		if v.State == "expired" || v.State == "invalid" || v.State == "expiring" {
+		if v.State == "unreadable" || v.State == "expired" || v.State == "invalid" || v.State == "expiring" {
 			out = append(out, Warning{kind, v.State, v.Expires})
 		}
 	}
@@ -310,3 +325,23 @@ func (m *Manager) Warnings(ctx context.Context) []Warning {
 }
 
 func (m *Manager) Reset(ctx context.Context) error { return m.store.Clear(ctx) }
+
+// legacyKey is only called when the database has no key yet. Existing databases
+// remain authoritative even if an old host file or environment value changes.
+func legacyKey(root string) ([]byte, error) {
+	if raw := os.Getenv("SOURCEGRAPH_CREDENTIAL_KEY"); raw != "" {
+		return base64.StdEncoding.DecodeString(raw)
+	}
+	path := filepath.Join(root, "code-credentials.key")
+	info, e := os.Lstat(path)
+	if os.IsNotExist(e) {
+		return nil, nil
+	}
+	if e != nil {
+		return nil, e
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		return nil, errors.New("unsafe code credential key permissions")
+	}
+	return os.ReadFile(path)
+}

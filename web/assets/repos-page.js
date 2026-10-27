@@ -8,6 +8,7 @@
   $('#f-index-mode').onchange=()=>{$('#f-paths-wrap').classList.toggle('hidden',$('#f-index-mode').value!=='monorepo');$('#form-error').textContent='';};
   function renderSyncInterval(){const input=$('#f-sync-interval');input.innerHTML=M.syncIntervalOptions(input.value||M.DEFAULT_SYNC_INTERVAL_MINUTES);}
   renderSyncInterval();
+  $('#f-git-timeout').innerHTML=M.gitTimeoutOptions(0);
   const initial=new URLSearchParams(location.search);
   $('#filter').value=initial.get('q')||''; $('#show-deleted').checked=initial.get('deleted')==='1';
 
@@ -96,7 +97,7 @@
   $('#f-name').addEventListener('input',()=>{$('#form-error').textContent='';});
   $('#f-sync-interval').addEventListener('change',()=>{$('#form-error').textContent='';});
   async function submit(e){if(e)e.preventDefault();if(submitting||!M.manage(canRegister())||!$('#form').reportValidity())return;let body;
-    try {const name=M.repositoryName($('#f-name').value);if(rows.some(r=>r.name===name))throw new Error(t('该仓库已登记，请到详情页修改','This repository is already registered. Edit it from its details page'));body={name,code_provider:$('#f-code-provider').value,index_mode:$('#f-index-mode').value,public_read:$('#f-ack').checked,policy:{branches:branchInput.value(),...(branchInput.usesDefault()?{default_branch:true}:{})},sync_interval_minutes:M.syncInterval($('#f-sync-interval').value)};if(body.index_mode==='monorepo')body.path_groups=pathInput.value();}
+    try {const name=M.repositoryName($('#f-name').value);if(rows.some(r=>r.name===name))throw new Error(t('该仓库已登记，请到详情页修改','This repository is already registered. Edit it from its details page'));body={name,git_timeout_minutes:M.gitTimeout($('#f-git-timeout').value),code_provider:$('#f-code-provider').value,index_mode:$('#f-index-mode').value,public_read:$('#f-ack').checked,policy:{branches:branchInput.value(),...(branchInput.usesDefault()?{default_branch:true}:{})},sync_interval_minutes:M.syncInterval($('#f-sync-interval').value)};if(body.index_mode==='monorepo')body.path_groups=pathInput.value();}
     catch(e){$('#form-error').textContent=e.message;return;}
     submitting=true;$('#submit').disabled=true;$('#submit').textContent=t('提交中','Submitting');$('#form-error').textContent='';
     try {const r=await API.request('/api/admin/v1/repos',{method:'POST',body,headers:{'Idempotency-Key':keys.get(body)}});keys.done(body);A.toast(t('已登记，首轮同步已排队','Registered, first sync queued'));location.assign('/sourcegraph/repo?repo='+encodeURIComponent(r.name)+'&tab=jobs');}

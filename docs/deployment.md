@@ -10,7 +10,7 @@ Each instance owns its Git mirrors, Zoekt indexes and data directory. The databa
 Implementation notes for sharding:
 
 - Use PostgreSQL or MongoDB; SQLite cannot be shared between instances.
-- Set the same `SOURCEGRAPH_CREDENTIAL_KEY` on every instance. Otherwise each generates its own key on its volume and cannot decrypt credentials stored by the others.
+- Application secrets and the encryption key are stored in the shared database. When upgrading existing instances, import the original credential key before allowing a replacement instance to initialize the database; do not replace it with a new key.
 - Keep the repository → instance mapping stable. Moving a repository to another instance means it is fetched and indexed again there.
 - Route by the repository named in the request: the `repo` query parameter for HTTP, and the `repo` argument of MCP tool calls.
 
@@ -34,11 +34,11 @@ GitHub Actions runs verification on PRs and main. A successful main build deploy
 
 SQLite is the default. WAL and full synchronous commits are enabled; application writes use short transactions. The SQL schema stores BSON-encoded persistence models, including fields intentionally hidden from public JSON, with namespace/ID primary keys. PostgreSQL uses the same persistence contract with serializable transactions. MongoDB uses its native document collections; authentication admission requires transactions, so use a replica set or Atlas.
 
-Changing `SOURCEGRAPH_DATABASE` does not migrate data. Start with an empty destination or perform a separately reviewed export/import. External databases do not replace the persistent Git/index/key volume. Sharded instances share one PostgreSQL or MongoDB database; each instance still needs its own volume.
+Changing `SOURCEGRAPH_DATABASE` does not migrate data. Start with an empty destination or perform a separately reviewed export/import. External databases do not replace the persistent Git/index volume. Sharded instances share one PostgreSQL or MongoDB database; each instance still needs its own volume.
 
 ## Backups and recovery
 
-Back up the database, encryption key, runtime storage configuration and repository metadata. Keep backups outside the Machine/volume, with restricted access. Fly volume snapshots are supplementary; test restoring the application state.
+Back up the entire database, including its secrets and credential records, runtime storage configuration and repository metadata. Keep backups outside the Machine/volume, with restricted access. Fly volume snapshots are supplementary; test restoring the application state.
 
 For SQLite use the SQLite online backup API / CLI `.backup`, or stop the service before copying the database and its WAL together. Never copy only a live `sourcegraph.db`. Example while the app is running:
 
@@ -46,9 +46,9 @@ For SQLite use the SQLite online backup API / CLI `.backup`, or stop the service
 sqlite3 /data/sourcegraph.db '.backup /data/sourcegraph-backup.db'
 ```
 
-Copy the resulting backup and key/config files to protected external storage. Indexes and bare Git repositories can be rebuilt, but identities, settings, credentials and their encryption key cannot be reconstructed from Git. For PostgreSQL use `pg_dump`; for MongoDB use an appropriate replica-set/Atlas backup.
+Copy the resulting backup and runtime config files to protected external storage. Retain a legacy key file only for pre-upgrade recovery. Indexes and bare Git repositories can be rebuilt, but identities, settings, credentials and their encryption key cannot be reconstructed from Git. For PostgreSQL use `pg_dump`; for MongoDB use an appropriate replica-set/Atlas backup.
 
-To restore, stop the Machine, restore database and matching key/config, then start one Machine and verify administrator access, repository metadata and index recovery. Image rollback and database restoration are separate operations; retain a known-good image and take a backup before schema changes.
+To restore, stop the Machine, restore the complete database (including secrets) and runtime config; for pre-upgrade backups also restore the matching legacy key, then start one Machine and verify administrator access, repository metadata and index recovery. Image rollback and database restoration are separate operations; retain a known-good image and take a backup before schema changes.
 
 ## Task and query diagnostics
 
@@ -57,3 +57,16 @@ Terminal queue history retains its existing 24-hour/count limits. A separate `jo
 After durable task completion, structured `repository_task_completed` logs include repository/task identity, state and error code, never raw preparation errors. Unchanged successful automatic scans are omitted. Queue history and summaries describe historical events, not current readiness.
 
 Admin query logs include optional `batch` counters (`total`, `succeeded`, `failed`, `content_items`) independently of truncated request context. One log represents one request with failures. An empty File is successful; an item with both partial File and Error counts as failed with returned content. Unfinished items equal total minus succeeded and failed. Older records without counters remain unknown. Query-log retention is unchanged.
+
+
+## Application secrets
+
+Application secrets use AES-256-GCM, with the encryption key and encrypted values stored in the same database. This removes a separate host-key dependency; it does **not** protect against disclosure of the whole database. Restrict database access and protect backups.
+
+The first upgrade imports `SOURCEGRAPH_CREDENTIAL_KEY` if set, otherwise the existing private `code-credentials.key` file. Existing encrypted code-source tokens continue using that key. Fresh databases generate a random key without creating a key file. Subsequent starts read the database and ignore obsolete host key seeds. Never initialize a replacement host against an old credentials database without importing its original key first.
+
+The service API bearer and Google/GitHub OAuth client configuration are also persisted. Existing environment values seed missing records; existing database records take precedence. OAuth is left unconfigured when no provider is supplied. Keep environment secrets and the legacy key during the first rollout so the previous image remains usable on its original volume. After verified upgrade, replacement hosts need the database and non-secret runtime configuration, plus separate Git/index storage.
+
+SQL stores secrets in the `secrets` namespace of `sourcegraph_documents`; MongoDB uses `sourcegraph_secrets`. Back up those records together with credentials and identity data. Changing an environment seed does not rotate an existing database secret. Rotation requires an authorized maintenance change to the corresponding database secret and verification of the new provider/service credential; do not delete the encryption key to rotate a token. Personal/global Git tokens remain editable through the website.
+
+If a code token is already unreadable, the UI reports `unreadable` and allows replacing or clearing it with revision checks. Other users and repository records stay intact. An unreadable personal token does not block a usable global token.

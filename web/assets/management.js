@@ -37,6 +37,13 @@
   function syncIntervalOptions(selected) {
     return SYNC_INTERVAL_MINUTES.map(minutes => '<option value="' + minutes + '"' + (minutes === Number(selected) ? ' selected' : '') + '>' + syncIntervalLabel(minutes) + '</option>').join('');
   }
+  function gitTimeout(value, inherit = true) {
+    const minutes = Number(value);
+    if (!['number','string'].includes(typeof value) || String(value).trim() === '' || ![15,30,45,60,...(inherit?[0]:[])].includes(minutes)) throw new Error('同步超时需选择 15、30、45 或 60 分钟 / Choose 15, 30, 45 or 60 minutes');
+    return minutes;
+  }
+  function gitTimeoutLabel(minutes) { return Number(minutes) === 0 ? root.App.t('继承全局','Inherit global') : root.App.t(minutes+' 分钟',minutes+' minutes'); }
+  function gitTimeoutOptions(selected, inherit = true) { return [...(inherit?[0]:[]),15,30,45,60].map(n=>'<option value="'+n+'"'+(n===Number(selected)?' selected':'')+'>'+gitTimeoutLabel(n)+'</option>').join(''); }
   function directoryPath(value) {
     const path = typeof value === 'string' ? value.trim().replace(/\/$/, '') : '';
     if (!path || path.length > 1024 || path.startsWith('/') || /^[A-Za-z]:/.test(path) || /[\\*?\[\]\x00-\x1f\x7f]/.test(path) || path.split('/').some(x => !x || x === '.' || x === '..' || x.toLowerCase() === '.git')) throw new Error('请填写安全的仓库相对目录 / Use a safe repository-relative directory');
@@ -133,6 +140,6 @@
     root.addEventListener('pagehide',()=>{stopped=true;clearTimeout(timer);});
     return {refresh, restart:()=>{count=0;stopped=false;refresh();}};
   }
-  root.Management = {active,orderedJobs,time,validTime,bytes,repositoryName,splitBranches,branches,policy,SYNC_INTERVAL_MINUTES,DEFAULT_SYNC_INTERVAL_MINUTES,DEFAULT_PATH_GROUP,syncInterval,syncIntervalLabel,syncIntervalOptions,directoryPath,pathGroups,groupPathRows,indexModeLabel,indexTiming,jobReceipts,state,status,error,manage,operationKeys,aggregate,poll};
+  root.Management = {gitTimeout,gitTimeoutLabel,gitTimeoutOptions,active,orderedJobs,time,validTime,bytes,repositoryName,splitBranches,branches,policy,SYNC_INTERVAL_MINUTES,DEFAULT_SYNC_INTERVAL_MINUTES,DEFAULT_PATH_GROUP,syncInterval,syncIntervalLabel,syncIntervalOptions,directoryPath,pathGroups,groupPathRows,indexModeLabel,indexTiming,jobReceipts,state,status,error,manage,operationKeys,aggregate,poll};
   if (typeof module !== 'undefined') module.exports = root.Management;
 })(typeof window === 'undefined' ? globalThis : window);

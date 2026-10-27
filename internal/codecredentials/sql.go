@@ -3,6 +3,7 @@ package codecredentials
 import (
 	"context"
 	"errors"
+	"github.com/context4ai/sourcegraph/internal/secretstore"
 	"github.com/context4ai/sourcegraph/internal/sqlstore"
 )
 
@@ -31,4 +32,12 @@ func (s SQLStore) Save(ctx context.Context, r Record, expected int64) error {
 }
 func (s SQLStore) Clear(ctx context.Context) error {
 	return s.DB.Write(ctx, func(t *sqlstore.Tx) error { return t.Clear("credentials") })
+}
+
+func (s SQLStore) EncryptionKey(ctx context.Context, seed func() ([]byte, error)) ([]byte, error) {
+	v, e := secretstore.NewSQL(ctx, s.DB, secretstore.KeySeed(seed))
+	if e != nil {
+		return nil, e
+	}
+	return v.Key(), nil
 }

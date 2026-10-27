@@ -18,6 +18,7 @@ type registrationRequest struct {
 		Days          *int     `json:"days"`
 		Count         *int     `json:"count"`
 	} `json:"policy"`
+	GitTimeoutMinutes   int  `json:"git_timeout_minutes"`
 	SyncIntervalMinutes *int `json:"sync_interval_minutes"`
 }
 
