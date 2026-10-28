@@ -22,6 +22,10 @@ jobs:
       - run: bun run build:web
       - run: bun run check
       - run: go test -p 1 ./...
+      - name: Snapshot transport with minimum supported Git
+        run: |
+          CGO_ENABLED=0 go test -c -o /tmp/gitstore.test ./internal/gitstore
+          docker run --rm -v /tmp/gitstore.test:/test:ro debian:bullseye-slim sh -c 'apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null && git --version && /test -test.run TestShallowSnapshots -test.v'
       - run: python3 scripts/audit-public.py
       - run: docker build --build-arg BUILD_REVISION=${{ github.sha }} -t sourcegraph:verify .
   databases:
