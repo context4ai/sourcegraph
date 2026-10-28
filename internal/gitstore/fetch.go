@@ -215,7 +215,12 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 	if err != nil {
 		return remoteFailure(diagnostic.String(), "GIT_FETCH_FAILED", "Git fetch failed; check access and connectivity.")
 	}
-	return nil
+	if o.CheckGrowth != nil {
+		if err = o.CheckGrowth(); err != nil {
+			return err
+		}
+	}
+	return checkFree(s.root, o.MinFreeBytes)
 }
 func checkFree(root string, min uint64) error {
 	var st syscall.Statfs_t

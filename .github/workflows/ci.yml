@@ -24,13 +24,16 @@ jobs:
       - run: go test -p 1 ./...
       - name: Snapshot transport with minimum supported Git
         run: |
-          CGO_ENABLED=0 go test -c -o /tmp/gitstore.test ./internal/gitstore
-          docker run --rm -v /tmp/gitstore.test:/test:ro debian:bullseye-slim sh -c 'apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null && git --version && /test -test.run TestShallowSnapshots -test.v'
+          curl --fail --location --retry 3 --max-time 120 https://github.com/git/git/archive/refs/tags/v2.30.2.tar.gz -o /tmp/git-2.30.2.tar.gz
+          tar -xzf /tmp/git-2.30.2.tar.gz -C /tmp
+          make -C /tmp/git-2.30.2 -j2 prefix=/tmp/git230 NO_GETTEXT=YesPlease NO_TCLTK=YesPlease NO_CURL=YesPlease NO_EXPAT=YesPlease NO_OPENSSL=YesPlease install
+          PATH=/tmp/git230/bin:$PATH git --version
+          PATH=/tmp/git230/bin:$PATH go test -count=1 -v ./internal/gitstore -run TestShallowSnapshots
       - run: python3 scripts/audit-public.py
       - run: docker build --build-arg BUILD_REVISION=${{ github.sha }} -t sourcegraph:verify .
   databases:
-    # MongoDB refuses to start on Linux 6.19+ (SERVER-121912), which ubuntu-latest (26.04) now runs.
-    runs-on: ubuntu-24.04
+    # MongoDB 8 rejects Linux 6.19+ (SERVER-121912). The 22.04 image uses Linux 6.8.
+    runs-on: ubuntu-22.04
     services:
       postgres:
         image: postgres:17
@@ -48,8 +51,13 @@ jobs:
           go-version-file: go.mod
       - name: Start MongoDB replica set
         run: |
+          uname -r
           docker run -d --name mongo-contract -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
           for i in $(seq 1 40); do
+            if [ "$(docker inspect -f '{{.State.Running}}' mongo-contract)" != true ]; then
+              docker logs --tail 80 mongo-contract
+              exit 1
+            fi
             if docker exec mongo-contract mongosh --quiet --eval 'db.adminCommand({ping:1})'; then break; fi
             sleep 2
           done
