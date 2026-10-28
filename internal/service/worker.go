@@ -154,7 +154,10 @@ func (s *Service) prepare(ctx context.Context, r control.Repository, j control.J
 		return s.prepareRevision(ctx, r, j)
 	}
 	if j.Kind == "sync" {
-		return s.sync(ctx, r, j)
+		if err := s.sync(ctx, r, j); err != nil {
+			return err
+		}
+		return s.collectRepositorySnapshots(ctx, r.Name)
 	}
 	if j.Kind == "index" {
 		r = s.markStorage(r)
@@ -296,28 +299,26 @@ func (s *Service) sync(ctx context.Context, r control.Repository, j control.Job)
 		}
 	}
 	heads := map[string]string{}
-	versions := []control.Version{}
-	seen := map[string]bool{}
+	versions := append([]control.Version(nil), r.Scope(j.Group).Versions...)
+	if r.StorageID != s.storageID() {
+		versions = nil
+	}
 	for _, b := range branches {
-		history, e := git.History(ctx, r.Name, b, r.Policy.Days, r.Policy.Count, time.Now())
+		v, e := git.Snapshot(ctx, r.Name, "refs/heads/"+b)
 		if e != nil {
 			return e
 		}
-		heads[b] = history[0].SHA
-		for _, v := range history {
-			if seen[v.SHA] {
-				continue
+		heads[b] = v.SHA
+		found := false
+		for _, old := range versions {
+			if old.Commit == v.SHA {
+				found = true
+				break
 			}
-			seen[v.SHA] = true
-			n := control.Version{Commit: v.SHA, Time: v.CommitterTime}
-			if old, ok := r.ScopedVersion(j.Group, v.SHA); ok && r.StorageID == s.storageID() {
-				n = old
-			}
-			versions = append(versions, n)
 		}
-	}
-	if len(versions) > 4096 {
-		return errors.New("combined retention window exceeds capacity")
+		if !found {
+			versions = append(versions, control.Version{Commit: v.SHA, Time: v.CommitterTime, ObservedAt: time.Now().UTC()})
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -337,7 +338,21 @@ func (s *Service) sync(ctx context.Context, r control.Repository, j control.Job)
 		state := v.Scope(j.Group)
 		state.ObservedAt = time.Now().UTC()
 		state.Heads = heads
-		state.Versions = versions
+		// Preserve already published baselines when adopting snapshot retention.
+		if !v.SnapshotStorage {
+			for _, group := range v.WorkGroups() {
+				for _, old := range v.Scope(group).Versions {
+					if old.Generation != 0 {
+						v.PinnedCommits = appendUnique(v.PinnedCommits, old.Commit)
+					}
+				}
+			}
+			v.SnapshotStorage = true
+		}
+		state.Versions = retainedSnapshots(*v, versions, heads, time.Now().UTC())
+		if len(state.Versions) > 4096 {
+			return contract.Fail("SNAPSHOT_LIMIT", "Release unused pinned snapshots before adding versions.", 409)
+		}
 		v.SetScope(j.Group, state)
 		return nil
 	})
@@ -369,7 +384,7 @@ func (s *Service) build(ctx context.Context, r control.Repository, j control.Job
 	}
 	target := zoektclient.Target{Repo: r.Name, Commit: j.Commit, RepositoryID: id, Group: j.Group}
 	var a indexer.Artifact
-	opts := indexer.Options{SkipGenerated: !r.IndexGenerated, NoFollowLinks: r.IndexSymlinks != nil && !*r.IndexSymlinks}
+	opts := indexer.Options{CheckStorage: func(stage string) error { return s.checkRepositoryBudget(ctx, r, stage) }, SkipGenerated: !r.IndexGenerated, NoFollowLinks: r.IndexSymlinks != nil && !*r.IndexSymlinks}
 	if len(paths) > 0 && !opts.NoFollowLinks {
 		guard, err := git.ObjectGrowthGuard(r.Name, 256<<20)
 		if err != nil {
@@ -378,7 +393,13 @@ func (s *Service) build(ctx context.Context, r control.Repository, j control.Job
 		opts.Hydrate = git.BudgetLinkHydrator(ctx, r.Name, j.Commit, func(entries []gitstore.Entry) error {
 			return s.withGitCredential(ctx, r, func(token string) error {
 				o := s.fetchOptions(r, token)
-				o.CheckGrowth = guard
+				budgetGuard := o.CheckGrowth
+				o.CheckGrowth = func() error {
+					if err := guard(); err != nil {
+						return err
+					}
+					return budgetGuard()
+				}
 				return git.HydrateEntries(ctx, r.Name, j.Commit, entries, o)
 			})
 		}, 256<<20)

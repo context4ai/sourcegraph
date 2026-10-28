@@ -9,6 +9,8 @@ import (
 )
 
 type Update struct {
+	PinnedCommits       *[]string            `json:"pinned_commits,omitempty"`
+	MaxStorageBytes     *int64               `json:"max_storage_bytes,omitempty"`
 	GitTimeoutMinutes   *int                 `json:"git_timeout_minutes,omitempty"`
 	PublicRead          *bool                `json:"public_read,omitempty"`
 	PathGroups          *[]control.PathGroup `json:"path_groups,omitempty"`
@@ -22,6 +24,19 @@ type Update struct {
 }
 
 func validateUpdate(u Update) error {
+	if u.MaxStorageBytes != nil && (*u.MaxStorageBytes < 1<<30 || *u.MaxStorageBytes > 10<<40) {
+		return contract.Fail("INVALID_STORAGE_BUDGET", "Choose a repository budget between 1 GiB and 10 TiB.", 400)
+	}
+	if u.PinnedCommits != nil {
+		if len(*u.PinnedCommits) > 4096 {
+			return contract.Fail("PIN_LIMIT", "At most 4096 pinned snapshots are supported.", 400)
+		}
+		for _, sha := range *u.PinnedCommits {
+			if !prepareSHA.MatchString(sha) {
+				return contract.Fail("INVALID_REVISION", "Pins must be full lowercase commit SHAs.", 400)
+			}
+		}
+	}
 	if err := u.Policy.Validate(); err != nil {
 		return err
 	}
@@ -64,7 +79,7 @@ func (s *Service) Preview(ctx context.Context, name string, u Update) (any, erro
 	if u.SyncIntervalMinutes != nil {
 		interval = *u.SyncIntervalMinutes
 	}
-	return map[string]any{"sync_interval_minutes": interval, "revision": r.Revision, "preview": preview(r, u), "retained_versions": len(r.Versions), "note": "Policy changes revoke current version eligibility until the next successful sync; Git bytes are retained until explicit cleanup."}, nil
+	return map[string]any{"sync_interval_minutes": interval, "revision": r.Revision, "preview": preview(r, u), "retained_versions": len(r.Versions), "note": "Retention applies at successful synchronization; pinned snapshots and branch heads remain available. Expired Git objects are reclaimed after synchronization."}, nil
 }
 func (s *Service) Update(ctx context.Context, name string, u Update, revision int64) (control.Repository, error) {
 	if e := validateUpdate(u); e != nil {
@@ -118,6 +133,12 @@ func (s *Service) Update(ctx context.Context, name string, u Update, revision in
 	if u.IndexGenerated != nil {
 		r.IndexGenerated = *u.IndexGenerated
 	}
+	if u.PinnedCommits != nil {
+		r.PinnedCommits = append([]string(nil), (*u.PinnedCommits)...)
+	}
+	if u.MaxStorageBytes != nil {
+		r.MaxStorageBytes = *u.MaxStorageBytes
+	}
 	r.Policy = u.Policy
 	r.Enabled = u.Enabled
 	r.Deleted = u.Deleted
@@ -134,9 +155,9 @@ func (s *Service) Update(ctx context.Context, name string, u Update, revision in
 			r.Jobs[i].Error = "POLICY_CHANGED"
 		}
 	}
-	// Disable retains evidence; changing the retention policy invalidates observed
-	// eligibility until a new sync, rather than authorizing unobserved revisions.
-	if policyChanged {
+	// Path changes invalidate the indexed scope; retention changes take effect
+	// at synchronization while already published snapshots remain available.
+	if groupsChanged {
 		r.DefaultBranch = ""
 		r.ObservedAt = time.Time{}
 		r.Heads = map[string]string{}

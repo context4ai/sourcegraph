@@ -132,8 +132,11 @@ func (s *Store) repoPath(repo string) (string, error) {
 	}
 	return p, nil
 }
+
+// Disable transport by default, including Git versions that predate
+// GIT_NO_LAZY_FETCH. Authorized worker fetches explicitly enable HTTPS.
 func (s *Store) command(ctx context.Context, p string, args ...string) *exec.Cmd {
-	fixed := []string{"--no-pager", "--git-dir=" + p, "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.external=", "-c", "core.quotePath=true"}
+	fixed := []string{"--no-pager", "--git-dir=" + p, "-c", "protocol.allow=never", "-c", "protocol.https.allow=never", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.external=", "-c", "core.quotePath=true"}
 	c := exec.CommandContext(ctx, s.git, append(fixed, args...)...)
 	c.Env = []string{"PATH=" + os.Getenv("PATH"), "LC_ALL=C", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_ATTR_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_LITERAL_PATHSPECS=1", "GIT_NO_LAZY_FETCH=1"}
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

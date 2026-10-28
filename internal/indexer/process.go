@@ -150,7 +150,14 @@ func (b Builder) buildIsolated(ctx context.Context, store *gitstore.Store, t zoe
 	}
 	command := exec.Command(executable, workerArgument)
 	command.Env = append(os.Environ(), "GOMAXPROCS=2")
-	return superviseIndex(ctx, command, func() error { return freeSpace(b.Root, b.MinFree) }, func(ctx context.Context, w io.Writer) error {
+	return superviseIndex(ctx, command, func() error {
+		if opts.CheckStorage != nil {
+			if err := opts.CheckStorage(idx); err != nil {
+				return err
+			}
+		}
+		return freeSpace(b.Root, b.MinFree)
+	}, func(ctx context.Context, w io.Writer) error {
 		encoder := gob.NewEncoder(w)
 		if err := encoder.Encode(workerHeader{Directory: idx, Target: t, Metadata: metadata}); err != nil {
 			return err

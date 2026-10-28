@@ -78,7 +78,7 @@ func prepareBranch(r control.Repository, revision string, beforeSync bool) (stri
 	if beforeSync && r.Policy.DefaultBranch && r.DefaultBranch == "" && (revision == "master" || revision == "main") {
 		return revision, nil
 	}
-	return "", contract.Fail("REVISION_NOT_ELIGIBLE", "Choose a monitored branch or a full lowercase SHA within retention.", 400)
+	return "", contract.Fail("REVISION_NOT_ELIGIBLE", "Choose a monitored branch or a full lowercase SHA.", 400)
 }
 
 func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j control.Job) error {
@@ -99,6 +99,53 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 	for _, group := range groups {
 		_, ok := r.ScopedVersion(group, target)
 		observed = observed && ok
+	}
+	if !observed && prepareSHA.MatchString(target) {
+		for _, group := range groups {
+			git, _, err := s.groupGit(r, group)
+			if err != nil {
+				return err
+			}
+			err = s.withGitCredential(ctx, r, func(token string) error {
+				o := s.fetchOptions(r, token)
+				o.Revision = target
+				o.DefaultBranch = false
+				return git.Fetch(ctx, r.Name, o)
+			})
+			if err != nil {
+				return err
+			}
+			commit, err := git.Snapshot(ctx, r.Name, target)
+			if err != nil {
+				return err
+			}
+			r, err = control.Mutate(ctx, s.DB, r.Name, func(v *control.Repository) error {
+				if _, err := v.Owned(j, time.Now().UTC()); err != nil {
+					return err
+				}
+				if v.StorageID != s.storageID() {
+					v.Scopes = nil
+					v.Versions = nil
+					v.Heads = nil
+				}
+				state := v.Scope(group)
+				if _, ok := v.ScopedVersion(group, target); !ok {
+					if len(state.Versions) >= 4096 {
+						return contract.Fail("SNAPSHOT_LIMIT", "Release an unused snapshot before adding another.", 409)
+					}
+					state.Versions = append(state.Versions, control.Version{Commit: target, Time: commit.CommitterTime, ObservedAt: time.Now().UTC()})
+				}
+				v.PinnedCommits = appendUnique(v.PinnedCommits, target)
+				v.StorageID = s.storageID()
+				v.SetScope(group, state)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		r.GitTimeoutMinutes = timeout
+		observed = true
 	}
 	if !observed {
 		for _, group := range groups {
@@ -135,6 +182,9 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 		owned, e := v.Owned(j, time.Now().UTC())
 		if e != nil {
 			return e
+		}
+		if prepareSHA.MatchString(j.RequestedRevision) {
+			v.PinnedCommits = appendUnique(v.PinnedCommits, target)
 		}
 		owned.Commit = target
 		owned.Stage = "indexing"
