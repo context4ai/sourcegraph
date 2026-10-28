@@ -2,6 +2,7 @@
 
 - [Authentication and demo access](authentication.md)
 - [Code sources and tokens](code-sources.md)
+- [Snapshot synchronization and retention](snapshots.md)
 - [Deployment, storage and backups](deployment.md)
 - [HTTP, MCP and CLI](interfaces.md)
 - [Repository plugins](ref/repository-plugins.md)

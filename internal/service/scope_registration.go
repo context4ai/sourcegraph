@@ -134,10 +134,8 @@ func (s *Service) queueGroups(ctx context.Context, name, kind, commit, group, ke
 			if _, ok := r.GroupPaths(g); !ok {
 				return contract.Fail("UNKNOWN_PATH_GROUP", "Path group is not registered.", 404)
 			}
-			if kind == "index" {
-				if _, ok := r.ScopedVersion(g, commit); !ok {
-					return contract.Fail("REVISION_NOT_ELIGIBLE", "Commit is outside a selected group's observed window; synchronize it first.", 404)
-				}
+			if kind == "index" && !prepareSHA.MatchString(commit) {
+				return contract.Fail("INVALID_REVISION", "Use a full lowercase SHA.", 400)
 			}
 			groupKey := k
 			body := digest([]string{kind, commit})
@@ -145,7 +143,11 @@ func (s *Service) queueGroups(ctx context.Context, name, kind, commit, group, ke
 				groupKey = digest([]string{k, g})
 				body = digest([]string{kind, commit, g})
 			}
-			j, e := r.QueueScoped(kind, commit, g, groupKey, body, identity.Actor(ctx), control.SourceManual, time.Now().UTC())
+			queuedKind := kind
+			if kind == "index" {
+				queuedKind = "prepare"
+			}
+			j, e := r.QueueScoped(queuedKind, commit, g, groupKey, body, identity.Actor(ctx), control.SourceManual, time.Now().UTC())
 			if e != nil {
 				return e
 			}

@@ -134,7 +134,7 @@ func (s *Store) HydrateEntries(ctx context.Context, repo, commit string, entries
 			end = len(missing)
 		}
 		remote := remoteURL(repo, o.Host)
-		args := append(fetchConfiguration(o), "fetch", "--no-tags", "--no-write-fetch-head", "--stdin", remote)
+		args := append(fetchConfiguration(o), "-c", "fetch.negotiationAlgorithm=noop", "fetch", "--no-tags", "--no-write-fetch-head", "--stdin", remote)
 		batchCtx, batchCancel := context.WithCancel(ctx)
 		c := s.command(batchCtx, p, args...)
 		c.Env = append(c.Env, credentialEnv(remote, o)...)

@@ -16,6 +16,8 @@ import (
 )
 
 type FetchOptions struct {
+	Snapshot         bool
+	Revision         string
 	CheckGrowth      func() error
 	DefaultBranch    bool
 	CredentialHelper string
@@ -54,8 +56,11 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 	if o.DefaultBranch {
 		slots++
 	}
-	if slots < 1 || slots > 8 {
+	if (slots < 1 || slots > 8) && o.Revision == "" {
 		return contract.Fail("INVALID_BRANCHES", "Choose 1..8 exact branches.", 400)
+	}
+	if o.Revision != "" && !fullSHA.MatchString(o.Revision) {
+		return contract.Fail("INVALID_REVISION", "Use a full commit SHA.", 400)
 	}
 	for _, b := range o.Branches {
 		if ValidateRevision(b) != nil || strings.HasPrefix(b, "refs/") || fullSHA.MatchString(b) {
@@ -104,6 +109,11 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 		}
 	}
 	defer syscall.Flock(fd, syscall.LOCK_UN)
+	if o.CheckGrowth != nil {
+		if err = o.CheckGrowth(); err != nil {
+			return err
+		}
+	}
 	if err = checkFree(s.root, o.MinFreeBytes); err != nil {
 		return err
 	}
@@ -147,12 +157,19 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 		}
 	}
 	args = append(args, "fetch", "--no-tags", "--force")
+	if o.Snapshot {
+		args = append(args, "--depth=1")
+	}
 	if s.group != "" {
 		args = append(args, "--filter=blob:none")
 	}
 	args = append(args, remote)
-	for _, b := range o.Branches {
-		args = append(args, "+refs/heads/"+b+":refs/heads/"+b)
+	if o.Revision != "" {
+		args = append(args, "+"+o.Revision+":refs/snapshots/"+o.Revision)
+	} else {
+		for _, b := range o.Branches {
+			args = append(args, "+refs/heads/"+b+":refs/heads/"+b)
+		}
 	}
 	command := s.command(ctx, p, args...)
 	command.Env = append(command.Env, credentialEnv(remote, o)...)
@@ -170,6 +187,13 @@ func (s *Store) fetch(ctx context.Context, repo string, o FetchOptions, selected
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				if o.CheckGrowth != nil {
+					if e := o.CheckGrowth(); e != nil {
+						capacity = e
+						cancel()
+						return
+					}
+				}
 				if e := checkFree(s.root, o.MinFreeBytes); e != nil {
 					capacity = e
 					cancel()

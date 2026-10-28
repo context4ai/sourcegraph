@@ -41,6 +41,7 @@ func (p Policy) Validate() error {
 }
 
 type Version struct {
+	ObservedAt      time.Time              `json:"observed_at,omitempty" bson:"observed_at,omitempty"`
 	LinkUnavailable bool                   `json:"-" bson:"-"`
 	LinkFormat      int                    `json:"-" bson:"link_format,omitempty"`
 	Links           *gitstore.LinkSnapshot `json:"-" bson:"-"`
@@ -110,8 +111,11 @@ type DiskUsage struct {
 }
 
 type Repository struct {
-	SyncChecks   map[string]SyncCheck `json:"sync_checks,omitempty" bson:"sync_checks,omitempty"`
-	CodeProvider string               `json:"code_provider,omitempty" bson:"code_provider,omitempty"`
+	SnapshotStorage bool                 `json:"snapshot_storage" bson:"snapshot_storage,omitempty"`
+	PinnedCommits   []string             `json:"pinned_commits" bson:"pinned_commits,omitempty"`
+	MaxStorageBytes int64                `json:"max_storage_bytes" bson:"max_storage_bytes,omitempty"`
+	SyncChecks      map[string]SyncCheck `json:"sync_checks,omitempty" bson:"sync_checks,omitempty"`
+	CodeProvider    string               `json:"code_provider,omitempty" bson:"code_provider,omitempty"`
 	// CodeHost pins the HTTPS origin chosen at registration; later source changes affect new repositories only.
 	CodeHost  string `json:"code_host,omitempty" bson:"code_host,omitempty"`
 	CreatorID string `json:"created_by,omitempty" bson:"created_by,omitempty"`

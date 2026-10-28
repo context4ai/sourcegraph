@@ -15,6 +15,7 @@ import (
 // Options are per-repository index settings. They apply to the next build;
 // published generations keep the settings they were built with.
 type Options struct {
+	CheckStorage            func(string) error
 	unsupportedPathsSkipped bool
 	// SkipGenerated leaves minified JavaScript/CSS and source maps out of the
 	// text index. Lock files and generated source code stay searchable.

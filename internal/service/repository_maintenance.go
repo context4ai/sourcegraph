@@ -77,6 +77,16 @@ func (s *Service) maintenancePlan(ctx context.Context, r control.Repository, act
 			}
 		}
 	}
+	if action == "cleanup" {
+		for _, group := range r.WorkGroups() {
+			for _, sha := range r.PinnedCommits {
+				if v, ok := r.ScopedVersion(group, sha); ok && v.Generation != 0 && !p.keepGenerations[v.Generation] {
+					p.Keep = append(p.Keep, KeptIndex{Group: group, Branch: "pinned", Commit: sha})
+					p.keepGenerations[v.Generation] = true
+				}
+			}
+		}
+	}
 	for _, location := range []struct{ root, subdir string }{{s.Root, "index"}, {s.Root, "manifests"}, {s.gitRoot(), "repos"}} {
 		root, err := filepath.EvalSymlinks(location.root)
 		if err != nil {

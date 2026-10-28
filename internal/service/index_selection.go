@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"sort"
 	"time"
 
 	"github.com/context4ai/sourcegraph/internal/contract"
@@ -99,32 +100,25 @@ func (s *Service) CommitOptions(ctx context.Context, name, branch string) (Commi
 	if head == "" {
 		return CommitOptions{}, contract.Fail("BRANCH_NOT_OBSERVED", "Synchronize the repository before selecting commits.", 409)
 	}
-	git, _, err := s.groupGit(r, group)
-	if err != nil {
-		return CommitOptions{}, err
-	}
-	commits, err := git.RecentCommits(ctx, name, head, 20)
-	if err != nil {
-		return CommitOptions{}, err
-	}
 	result := CommitOptions{Branches: monitoredBranches(r), Branch: branch, Head: head, ObservedAt: scope.ObservedAt, Commits: []CommitChoice{}}
-	for _, commit := range commits {
-		eligible, indexed := true, true
+	versions := append([]control.Version(nil), scope.Versions...)
+	sort.SliceStable(versions, func(i, j int) bool { return versions[i].ObservedAt.After(versions[j].ObservedAt) })
+	for _, version := range versions {
+		indexed := true
 		for _, g := range r.WorkGroups() {
-			v, ok := r.ScopedVersion(g, commit.Commit)
-			eligible = eligible && ok
+			v, ok := r.ScopedVersion(g, version.Commit)
 			indexed = indexed && ok && v.Generation != 0 && !s.markStorage(r).StorageMissing
 		}
-		result.Commits = append(result.Commits, CommitChoice{commit, eligible, indexed})
+		result.Commits = append(result.Commits, CommitChoice{gitstore.CommitOption{Commit: version.Commit, CommitterTime: version.Time}, true, indexed})
+		if len(result.Commits) == 20 {
+			break
+		}
 	}
 	return result, nil
 }
 func (s *Service) indexSelection(ctx context.Context, r control.Repository, q IndexSelection) (IndexSelectionPreview, error) {
 	if !r.Enabled || r.Deleted {
 		return IndexSelectionPreview{}, contract.Fail("REPOSITORY_DISABLED", "Enable the repository before preparing an index.", 409)
-	}
-	if s.markStorage(r).StorageMissing {
-		return IndexSelectionPreview{}, contract.Fail("REPOSITORY_STORAGE_MISSING", "Synchronize the repository first.", 409)
 	}
 	branch, err := selectedBranch(r, q.Branch)
 	if err != nil {
@@ -133,28 +127,10 @@ func (s *Service) indexSelection(ctx context.Context, r control.Repository, q In
 	if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(q.Commit) {
 		return IndexSelectionPreview{}, contract.Fail("INVALID_REVISION", "Enter a full 40-character commit SHA.", 400)
 	}
-	ready := true
+	ready := !s.markStorage(r).StorageMissing
 	for _, group := range r.WorkGroups() {
 		version, ok := r.ScopedVersion(group, q.Commit)
-		if !ok {
-			return IndexSelectionPreview{}, contract.Fail("REVISION_NOT_ELIGIBLE", "Commit is outside a monitored group's retention window; synchronize or adjust retention first.", 404)
-		}
-		head := r.Scope(group).Heads[branch]
-		if head == "" {
-			return IndexSelectionPreview{}, contract.Fail("BRANCH_NOT_OBSERVED", "Synchronize the selected branch first.", 409)
-		}
-		git, _, err := s.groupGit(r, group)
-		if err != nil {
-			return IndexSelectionPreview{}, err
-		}
-		ancestor, err := git.IsAncestor(ctx, r.Name, q.Commit, head)
-		if err != nil {
-			return IndexSelectionPreview{}, err
-		}
-		if !ancestor {
-			return IndexSelectionPreview{}, contract.Fail("REVISION_NOT_ON_BRANCH", "Commit is not reachable from the selected branch.", 422)
-		}
-		ready = ready && version.Generation != 0
+		ready = ready && ok && version.Generation != 0
 	}
 	return IndexSelectionPreview{Preview: digest([]any{"index", r.Revision, branch, q.Commit, r.WorkGroups()}), Revision: r.Revision, Branch: branch, Commit: q.Commit, Groups: r.WorkGroups(), AlreadyIndexed: ready}, nil
 }
@@ -218,7 +194,7 @@ func (s *Service) CreateIndex(ctx context.Context, name string, q IndexSelection
 		return nil, err
 	}
 	// Pin the storage root through validation and publication. The shared query
-	// lock protects Git bytes while ancestry is checked without blocking reads.
+	// lock protects observed snapshot metadata during validation.
 	s.preparation.RLock()
 	defer s.preparation.RUnlock()
 	var p IndexSelectionPreview
@@ -273,7 +249,7 @@ func (s *Service) CreateIndex(ctx context.Context, name string, q IndexSelection
 	}
 	jobs := make([]control.Job, 0, len(p.Groups))
 	for _, group := range p.Groups {
-		j, err := r.QueueScoped("index", q.Commit, group, digest([]string{k, group}), digest([]string{"index-selection", p.Branch, q.Commit, group}), identity.Actor(ctx), control.SourceManual, time.Now().UTC())
+		j, err := r.QueueScoped("prepare", q.Commit, group, digest([]string{k, group}), digest([]string{"index-selection", p.Branch, q.Commit, group}), identity.Actor(ctx), control.SourceManual, time.Now().UTC())
 		if err != nil {
 			return nil, err
 		}
