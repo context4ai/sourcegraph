@@ -132,6 +132,7 @@ func (s *Store) repoPath(repo string) (string, error) {
 	}
 	return p, nil
 }
+
 // Disable transport by default, including Git versions that predate
 // GIT_NO_LAZY_FETCH. Authorized worker fetches explicitly enable HTTPS.
 func (s *Store) command(ctx context.Context, p string, args ...string) *exec.Cmd {

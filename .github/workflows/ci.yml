@@ -26,7 +26,7 @@ jobs:
         run: |
           curl --fail --location --retry 3 --max-time 120 https://github.com/git/git/archive/refs/tags/v2.30.2.tar.gz -o /tmp/git-2.30.2.tar.gz
           tar -xzf /tmp/git-2.30.2.tar.gz -C /tmp
-          make -C /tmp/git-2.30.2 -j2 prefix=/tmp/git230 NO_GETTEXT=YesPlease NO_TCLTK=YesPlease NO_CURL=YesPlease NO_EXPAT=YesPlease NO_OPENSSL=YesPlease install
+          make -s -C /tmp/git-2.30.2 -j2 CFLAGS='-O2 -std=gnu99' prefix=/tmp/git230 NO_GETTEXT=YesPlease NO_TCLTK=YesPlease NO_CURL=YesPlease NO_EXPAT=YesPlease NO_OPENSSL=YesPlease install
           PATH=/tmp/git230/bin:$PATH git --version
           PATH=/tmp/git230/bin:$PATH go test -count=1 -v ./internal/gitstore -run TestShallowSnapshots
       - run: python3 scripts/audit-public.py
