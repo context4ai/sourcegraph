@@ -65,7 +65,7 @@ func TestShallowSnapshotsIncrementalHistoricalAndCollection(t *testing.T) {
 				t.Fatal(e)
 			}
 			wrapper := filepath.Join(t.TempDir(), "git")
-			script := "#!/bin/sh\nexec '" + realGit + "' -c protocol.file.allow=always -c 'url.file://" + work + ".insteadOf=https://fixture.example/org/repo.git' \"$@\"\n"
+			script := "#!/bin/sh\nallow=never\nfor arg in \"$@\"; do case \"$arg\" in fetch|ls-remote) allow=always;; esac; done\nexec '" + realGit + "' -c protocol.file.allow=$allow -c 'url.file://" + work + ".insteadOf=https://fixture.example/org/repo.git' \"$@\"\n"
 			if e = os.WriteFile(wrapper, []byte(script), 0700); e != nil {
 				t.Fatal(e)
 			}
