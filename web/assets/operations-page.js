@@ -85,7 +85,17 @@
   $('#chart').addEventListener('mouseleave',()=>chartHoverAt(null));
 
   // Everyone sees the instance that answered; administrators see every instance with a recent heartbeat.
-  function instanceCard(id,observed,s,r,stale,load){
+  // Expired indexes waiting for collection and the latest round's outcome.
+  function collectionLine(c){
+    if(!c||!c.last_run_at)return '';
+    const reasons={round_budget_exhausted:t('本轮时间用尽','round budget used up'),registry_unavailable:t('读取仓库记录失败','registry unavailable'),remove_failed:t('删除文件失败','file removal failed'),manifest_scan_failed:t('扫描索引清单失败','manifest scan failed')};
+    const pending=c.pending_generations?t('待回收索引 '+c.pending_generations+' 个 · '+M.bytes(c.pending_bytes),c.pending_generations+' expired indexes · '+M.bytes(c.pending_bytes)):t('无待回收索引','No expired indexes');
+    const busy=c.busy_repositories?t('，'+c.busy_repositories+' 个仓库忙碌顺延',', '+c.busy_repositories+' busy, deferred'):'';
+    const last=c.last_reclaim_at?t('；上次回收 '+ago(c.last_reclaim_at),'; last reclaimed '+ago(c.last_reclaim_at)):'';
+    const err=c.last_error?'<span class="text-warn" title="'+esc(ago(c.last_error_at))+'">'+t('；最近问题：','; last issue: ')+esc(reasons[c.last_error]||c.last_error)+'</span>':'';
+    return '<div class="mt-1.5 truncate text-[12.5px] text-muted">'+esc(pending+busy+last)+err+'</div>';
+  }
+  function instanceCard(id,observed,s,r,stale,load,gc){
     const used=s?s.total_bytes-s.available_bytes:null,pct=s&&s.total_bytes?Math.min(100,Math.max(0,used/s.total_bytes*100)):0;
     // Every column stacks the same rows (label, value, detail) so values line up across columns.
     const col=(label,aside,value,detail,extra='')=>'<div class="min-w-0 '+extra+'"><div class="flex h-4 items-center justify-between gap-3"><span class="type-fig">'+label+'</span>'+(aside||'')+'</div>'+
@@ -93,7 +103,7 @@
     const health=A.status(stale?'failed':'ready').replace(stale?t('失败','Failed'):t('可查询','Searchable'),stale?t('心跳过期','Stale'):t('健康','Healthy')).replace('text-[13px]','text-[12px]');
     return '<div class="field grid grid-cols-2 items-start gap-x-8 gap-y-5 p-5 md:grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">'+
       col(t('实例','instance'),health,{html:esc(id),title:id},load?'<div class="truncate text-[12.5px] text-muted">'+load+'</div>':'','col-span-2 md:col-span-1')+
-      col(t('磁盘','disk'),s?'<span class="font-mono text-[11px] text-muted">'+t('可用 ','Available ')+M.bytes(s.available_bytes)+'</span>':'',{html:s?M.bytes(used)+' / '+M.bytes(s.total_bytes):'<span class="text-muted">-</span>'},s?'<div class="h-[4px] rounded-full bg-ink/[0.07]"><div class="h-full rounded-full bg-ink/70" style="width:'+pct+'%"></div></div>':'','col-span-2 md:col-span-1')+
+      col(t('磁盘','disk'),s?'<span class="font-mono text-[11px] text-muted">'+t('可用 ','Available ')+M.bytes(s.available_bytes)+'</span>':'',{html:s?M.bytes(used)+' / '+M.bytes(s.total_bytes):'<span class="text-muted">-</span>'},s?'<div class="h-[4px] rounded-full bg-ink/[0.07]"><div class="h-full rounded-full bg-ink/70" style="width:'+pct+'%"></div></div>'+collectionLine(gc):collectionLine(gc),'col-span-2 md:col-span-1')+
       col(t('心跳','heartbeat'),'',{html:esc(ago(observed))},'')+
       col(t('CPU 主机 · 进程','CPU host · process'),'',{html:percent(r.host_cpu_percent)+' · '+percent(r.process_cpu_percent)},'<div class="truncate text-[12.5px] text-muted">'+t('内存 ','memory ')+(Number.isFinite(r.process_rss_bytes)?M.bytes(r.process_rss_bytes):'-')+'</div>')+
     '</div>';
@@ -105,13 +115,13 @@
       const own=data&&!rows.some(row=>row.instance_id===data.instance_id);
       const n=rows.length+(own?1:0);
       $('#inst-sum').textContent=t('当前已经部署的服务实例 '+n+' 个，已通过接入规则分配实例服务不同仓库'+(bad?'；'+bad+' 个心跳过期':''),n+' service instance'+(n>1?'s':'')+' deployed; access rules assign instances to different repositories'+(bad?'; '+bad+' stale':''));
-      $('#inst').innerHTML=(own?instanceCard(data.instance_id,data.sampled_at,data.storage,data.resources||{},false,''):'')+rows.map(row=>{const v=row.payload||{};return instanceCard(row.instance_id,row.observed_at,v.storage,v.resources||{},stale(row),t('1 小时 '+Number(v.requests_60m||0).toLocaleString()+' 次查询 · 失败 '+Number(v.errors_60m||0).toLocaleString(),Number(v.requests_60m||0).toLocaleString()+' queries in 1 hour · '+Number(v.errors_60m||0).toLocaleString()+' failed'));}).join('');
+      $('#inst').innerHTML=(own?instanceCard(data.instance_id,data.sampled_at,data.storage,data.resources||{},false,'',data.index_collection):'')+rows.map(row=>{const v=row.payload||{};return instanceCard(row.instance_id,row.observed_at,v.storage,v.resources||{},stale(row),t('1 小时 '+Number(v.requests_60m||0).toLocaleString()+' 次查询 · 失败 '+Number(v.errors_60m||0).toLocaleString(),Number(v.requests_60m||0).toLocaleString()+' queries in 1 hour · '+Number(v.errors_60m||0).toLocaleString()+' failed'),v.index_collection);}).join('');
       return;
     }
     if(!data){$('#inst').innerHTML='';$('#inst-sum').textContent='';return;}
     $('#inst-sum').textContent=t('当前已经部署的服务实例，已通过接入规则分配实例服务不同仓库','Deployed service instances; access rules assign instances to different repositories');
     const r=data.resources||{};
-    $('#inst').innerHTML=instanceCard(data.instance_id,data.sampled_at,data.storage,r,false,'');
+    $('#inst').innerHTML=instanceCard(data.instance_id,data.sampled_at,data.storage,r,false,'',data.index_collection);
   }
 
   function timing(j){

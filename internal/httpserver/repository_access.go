@@ -43,6 +43,9 @@ func authorizeDelegated(ctx context.Context, r *http.Request, s *service.Service
 	if identity.IsAdmin(ctx) {
 		return nil
 	}
+	if r.URL.Path == Prefix+"/api/admin/v1/repo/prepare" {
+		return s.AuthorizePrepare(ctx, repo)
+	}
 	user := identity.UserID(ctx)
 	if registrationRoute(r) {
 		if user != "" && settings.AllowUserRepositories() {

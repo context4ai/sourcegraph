@@ -54,7 +54,7 @@ Repository registration, maintenance, statistics and site settings live under `/
 
 Site administrators manage every repository. The site setting **Let signed-in users register repositories** (`access.allow_user_repositories`) defaults to off; older settings without the field read as off, so upgrading does not change who can register. When it is on, any signed-in user can register a repository and becomes its only manager. Repositories registered before managers existed treat their creator as manager until the list is first edited; after that the stored list is used even when empty, leaving management to administrators. A repository has at most 50 managers.
 
-Repository managers and administrators can use every `?repo=` management route on that repository: edit settings, preview, prepare and add indexes, list commit options, clean up, cancel jobs, delete and purge, and add or remove managers, including themselves. Others receive `403 REPOSITORY_MANAGEMENT_DENIED`; registration while the setting is off returns `403 REGISTRATION_DISABLED`. Users, site settings, global code-source tokens and other site-wide routes stay administrator-only, and personal API keys keep their read-only scope.
+Repository managers and administrators can use every `?repo=` management route on that repository: edit settings, preview, prepare and add indexes, list commit options, clean up, cancel jobs, delete and purge, and add or remove managers, including themselves. Others receive `403 REPOSITORY_MANAGEMENT_DENIED`; registration while the setting is off returns `403 REGISTRATION_DISABLED`. Users, site settings, global code-source tokens and other site-wide routes stay administrator-only. Personal API keys read what their owner reads and may call only the prepare route besides that.
 
 | Route | Purpose |
 | --- | --- |
@@ -92,7 +92,9 @@ sourcegraph-cli read -repo context4ai/context -path README.md -start-line 1 -end
 | `SOURCEGRAPH_URL` | Service URL, default `https://context4ai.org/sourcegraph`; must be a credential-free HTTPS URL |
 | `SOURCEGRAPH_API_TOKEN` | Optional bearer credential, at least 32 characters |
 
-Personal API keys are created from a signed-in user's settings; prepare permission is additionally checked against the current administrator role.
+Personal API keys are created from a signed-in user's settings. A key can prepare (MCP `prepare` or `POST /api/admin/v1/repo/prepare`) a repository its owner manages, or any repository when its owner is currently a site administrator; this is checked on every call. MCP lists `prepare` only for keys whose owner is an administrator or manages at least one repository (refreshed within a minute). Keys are limited to 10 prepare calls a minute.
+
+Manual preparation is paced per repository across the website, HTTP and MCP. A request identical to a queued or running job (same group, kind and revision) returns that job and adds no queue load. Any other new request within 30 seconds of the repository's last accepted manual request returns `429 RATE_LIMITED` with `Retry-After`; one request queuing every monorepo group is a single request. Scheduled work is not paced.
 
 ## Unsupported Git paths
 

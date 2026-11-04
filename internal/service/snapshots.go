@@ -98,10 +98,16 @@ func (s *Service) collectRepositorySnapshots(ctx context.Context, name string) e
 			return err
 		}
 	}
+	// Indexes of versions that just left retention go now rather than waiting
+	// for the background round; a failure leaves them to that round.
+	_, _ = s.reclaimRepository(ctx, name)
 	return nil
 }
 
 func (s *Service) checkRepositoryBudget(ctx context.Context, r control.Repository, extra ...string) error {
+	return s.checkRepositoryBudgetOnce(ctx, r, false, extra...)
+}
+func (s *Service) checkRepositoryBudgetOnce(ctx context.Context, r control.Repository, reclaimed bool, extra ...string) error {
 	limit := r.MaxStorageBytes
 	if limit == 0 {
 		limit = defaultRepositoryBudget
@@ -128,6 +134,13 @@ func (s *Service) checkRepositoryBudget(ctx context.Context, r control.Repositor
 	for _, path := range extra {
 		if err = meter.walk(ctx, path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
+		}
+	}
+	if meter.bytes >= limit && !reclaimed {
+		// Expired indexes count against the budget until collected. Callers run
+		// inside this repository's job, so reclaim them first and measure again.
+		if removed, err := s.reclaimRepository(ctx, r.Name); err == nil && removed > 0 {
+			return s.checkRepositoryBudgetOnce(ctx, r, true, extra...)
 		}
 	}
 	if meter.bytes >= limit {

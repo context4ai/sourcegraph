@@ -36,7 +36,7 @@ func (s *Service) PrepareRevision(ctx context.Context, name, revision, group, ke
 			return e
 		}
 		var e error
-		job, e = r.QueueScoped("prepare", revision, group, k, digest([]string{revision, group}), identity.Actor(ctx), control.SourceManual, time.Now().UTC())
+		job, e = r.QueueRequested("prepare", revision, group, k, digest([]string{revision, group}), identity.Actor(ctx), time.Now().UTC())
 		return e
 	})
 	return job, err

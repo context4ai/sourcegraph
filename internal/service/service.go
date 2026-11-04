@@ -42,7 +42,7 @@ type Service struct {
 	diskWake            chan struct{}
 	diskWakeOnce        sync.Once
 	storage             storageSlot
-	gcCursor            int
+	collection          collectionState
 	metrics             Metrics
 	preparation         sync.RWMutex
 	repositoryWorkMu    sync.Mutex

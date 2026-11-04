@@ -248,8 +248,9 @@ func (s *Service) CreateIndex(ctx context.Context, name string, q IndexSelection
 		return nil, contract.Fail("REVISION_CONFLICT", "Index preview expired; reload and preview again.", 412)
 	}
 	jobs := make([]control.Job, 0, len(p.Groups))
+	queuedAt := time.Now().UTC() // one request queues all groups at the same instant
 	for _, group := range p.Groups {
-		j, err := r.QueueScoped("prepare", q.Commit, group, digest([]string{k, group}), digest([]string{"index-selection", p.Branch, q.Commit, group}), identity.Actor(ctx), control.SourceManual, time.Now().UTC())
+		j, err := r.QueueRequested("prepare", q.Commit, group, digest([]string{k, group}), digest([]string{"index-selection", p.Branch, q.Commit, group}), identity.Actor(ctx), queuedAt)
 		if err != nil {
 			return nil, err
 		}

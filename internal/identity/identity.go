@@ -51,3 +51,15 @@ func IsAdmin(ctx context.Context) bool {
 	value, _ := ctx.Value(adminKey{}).(bool)
 	return value
 }
+
+type ownerAdminKey struct{}
+
+// WithTokenOwnerAdmin records that a personal token's owner is currently an
+// administrator. It only widens index preparation, never site management.
+func WithTokenOwnerAdmin(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ownerAdminKey{}, true)
+}
+func TokenOwnerAdmin(ctx context.Context) bool {
+	value, _ := ctx.Value(ownerAdminKey{}).(bool)
+	return value
+}

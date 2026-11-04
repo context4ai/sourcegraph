@@ -129,7 +129,8 @@ func (s *Service) queueGroups(ctx context.Context, name, kind, commit, group, ke
 			}
 			groups = r.WorkGroups()
 		}
-		jobs = nil // CAS retries rebuild the response from the accepted state.
+		jobs = nil                   // CAS retries rebuild the response from the accepted state.
+		queuedAt := time.Now().UTC() // one request queues all groups at the same instant
 		for _, g := range groups {
 			if _, ok := r.GroupPaths(g); !ok {
 				return contract.Fail("UNKNOWN_PATH_GROUP", "Path group is not registered.", 404)
@@ -147,7 +148,7 @@ func (s *Service) queueGroups(ctx context.Context, name, kind, commit, group, ke
 			if kind == "index" {
 				queuedKind = "prepare"
 			}
-			j, e := r.QueueScoped(queuedKind, commit, g, groupKey, body, identity.Actor(ctx), control.SourceManual, time.Now().UTC())
+			j, e := r.QueueRequested(queuedKind, commit, g, groupKey, body, identity.Actor(ctx), queuedAt)
 			if e != nil {
 				return e
 			}

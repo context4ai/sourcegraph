@@ -24,13 +24,16 @@ type KeptIndex struct {
 	Commit string `json:"commit"`
 }
 type MaintenancePreview struct {
-	Preview           string      `json:"preview"`
-	Revision          int64       `json:"revision"`
-	Keep              []KeptIndex `json:"keep"`
-	RemoveGenerations int         `json:"remove_generations"`
-	RemoveShards      int         `json:"remove_shards"`
-	ReclaimBytes      int64       `json:"reclaim_bytes"`
-	GitBytes          int64       `json:"git_bytes"`
+	Preview  string      `json:"preview"`
+	Revision int64       `json:"revision"`
+	Keep     []KeptIndex `json:"keep"`
+	// ExpiredOnly means the latest indexes are not all ready, so cleanup keeps
+	// every index a retained version references and removes only expired ones.
+	ExpiredOnly       bool  `json:"expired_only"`
+	RemoveGenerations int   `json:"remove_generations"`
+	RemoveShards      int   `json:"remove_shards"`
+	ReclaimBytes      int64 `json:"reclaim_bytes"`
+	GitBytes          int64 `json:"git_bytes"`
 	artifacts         []indexer.Artifact
 	keepGenerations   map[uint32]bool
 }
@@ -46,8 +49,20 @@ func (s *Service) PreviewMaintenance(ctx context.Context, name, action string) (
 	}
 	return s.maintenancePlan(ctx, r, action)
 }
+
+// maintenancePlan prefers keeping only the latest and pinned indexes. When the
+// latest index is not ready, for example because expired indexes still hold the
+// storage budget, cleanup falls back to removing expired indexes only.
 func (s *Service) maintenancePlan(ctx context.Context, r control.Repository, action string) (MaintenancePreview, error) {
-	p := MaintenancePreview{Revision: r.Revision, Keep: []KeptIndex{}, keepGenerations: map[uint32]bool{}}
+	p, err := s.maintenancePlanMode(ctx, r, action, false)
+	var ce *contract.Error
+	if action == "cleanup" && errors.As(err, &ce) && ce.Code == "LATEST_INDEX_NOT_READY" {
+		return s.maintenancePlanMode(ctx, r, action, true)
+	}
+	return p, err
+}
+func (s *Service) maintenancePlanMode(ctx context.Context, r control.Repository, action string, expiredOnly bool) (MaintenancePreview, error) {
+	p := MaintenancePreview{Revision: r.Revision, Keep: []KeptIndex{}, ExpiredOnly: expiredOnly, keepGenerations: map[uint32]bool{}}
 	if action != "cleanup" && action != "delete" {
 		return p, contract.Fail("INVALID_ACTION", "Choose cleanup or delete.", 400)
 	}
@@ -55,8 +70,19 @@ func (s *Service) maintenancePlan(ctx context.Context, r control.Repository, act
 		if r.Deleted || s.markStorage(r).StorageMissing {
 			return p, contract.Fail("REPOSITORY_STORAGE_MISSING", "Synchronize the repository before cleanup.", 409)
 		}
+		if expiredOnly {
+			for _, group := range r.WorkGroups() {
+				for _, v := range r.Scope(group).Versions {
+					if v.Generation != 0 {
+						p.keepGenerations[v.Generation] = true
+					}
+				}
+			}
+		}
 		branches := monitoredBranches(r)
-		if len(branches) == 0 || (r.Policy.DefaultBranch && r.DefaultBranch == "") {
+		if expiredOnly {
+			branches = nil
+		} else if len(branches) == 0 || (r.Policy.DefaultBranch && r.DefaultBranch == "") {
 			return p, contract.Fail("LATEST_INDEX_NOT_READY", "Synchronize and index each monitored branch before cleanup.", 409)
 		}
 		alignedHeads := map[string]string{}
@@ -107,6 +133,9 @@ func (s *Service) maintenancePlan(ctx context.Context, r control.Repository, act
 	}
 	foundKept := map[uint32]bool{}
 	for _, a := range artifacts {
+		if p.keepGenerations[a.Target.RepositoryID] && expiredOnly {
+			continue
+		}
 		if p.keepGenerations[a.Target.RepositoryID] {
 			if len(a.Shards) == 0 {
 				return p, contract.Fail("LATEST_INDEX_NOT_READY", "Latest index files are missing; rebuild before cleanup.", 409)
@@ -138,7 +167,7 @@ func (s *Service) maintenancePlan(ctx context.Context, r control.Repository, act
 		}
 	}
 	for id := range p.keepGenerations {
-		if !foundKept[id] {
+		if !foundKept[id] && !expiredOnly {
 			return p, contract.Fail("LATEST_INDEX_NOT_READY", "Latest index manifest is missing; rebuild before cleanup.", 409)
 		}
 	}
@@ -172,7 +201,7 @@ func (s *Service) maintenancePlan(ctx context.Context, r control.Repository, act
 	}
 	// Include physical inventory so an interrupted operation can be previewed and
 	// retried without claiming that already removed bytes are still present.
-	p.Preview = digest([]any{action, r.ID, r.Revision, p.Keep, p.artifacts, p.RemoveShards, p.ReclaimBytes, p.GitBytes})
+	p.Preview = digest([]any{action, r.ID, r.Revision, p.ExpiredOnly, p.Keep, p.artifacts, p.RemoveShards, p.ReclaimBytes, p.GitBytes})
 	return p, nil
 }
 func (s *Service) repositoryArtifacts(ctx context.Context, repo string) ([]indexer.Artifact, error) {
@@ -293,7 +322,7 @@ func (s *Service) Maintenance(ctx context.Context, name, action, preview string,
 		}
 		keep := false
 		if action == "cleanup" {
-			if j.Kind == "sync" {
+			if j.Kind == "sync" || p.ExpiredOnly {
 				keep = true
 			}
 			for _, v := range p.Keep {
@@ -355,5 +384,5 @@ func (s *Service) Maintenance(ctx context.Context, name, action, preview string,
 	if action == "cleanup" {
 		s.wakeDiskUsage()
 	}
-	return map[string]any{"cleaned": action == "cleanup", "deleted": action == "delete", "removed_generations": p.RemoveGenerations, "removed_shards": p.RemoveShards, "reclaimed_bytes": p.ReclaimBytes + p.GitBytes, "keep": p.Keep}, nil
+	return map[string]any{"cleaned": action == "cleanup", "deleted": action == "delete", "expired_only": p.ExpiredOnly, "removed_generations": p.RemoveGenerations, "removed_shards": p.RemoveShards, "reclaimed_bytes": p.ReclaimBytes + p.GitBytes, "keep": p.Keep}, nil
 }

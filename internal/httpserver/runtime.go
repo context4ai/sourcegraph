@@ -41,17 +41,18 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 	limits := &websiteLimits{}
 	mcpserver.ConfigureListener(c.ListenHost)
 	mcpHandler := mcpserver.New(s)
-	// Discovery routing filters tools; keep this independent invocation guard
-	// as well. CanPrepare only reads the already-authenticated request context.
-	personalMCP := mcpserver.NewWithPrepareAuthorization(s, func(ctx context.Context) error {
-		if identity.CanPrepare(ctx) {
-			if !limits.allow(identity.Actor(ctx), "prepare", 10, 60) {
-				return contract.Fail("RATE_LIMITED", "Retry preparation after one minute.", 429)
-			}
-			return nil
+	// Discovery routing hides prepare from tokens that cannot use it; this guard
+	// still checks each call's repository and bounds the rate per token.
+	personalMCP := mcpserver.NewWithPrepareAuthorization(s, func(ctx context.Context, repo string) error {
+		if err := s.AuthorizePrepare(ctx, repo); err != nil {
+			return err
 		}
-		return contract.Fail("ACCESS_DENIED", "Index preparation requires a token with prepare permission and an active administrator owner.", 403)
+		if !limits.allow(identity.Actor(ctx), "prepare", 10, 60) {
+			return contract.Fail("RATE_LIMITED", "Retry preparation after one minute.", 429)
+		}
+		return nil
 	})
+	preparers := &preparerCache{}
 	readOnlyMCP := mcpserver.NewReadOnly(s)
 
 	expected := sha256.Sum256([]byte(token))
@@ -196,8 +197,8 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 			if !ok {
 				return
 			}
-			if r.URL.Path != Prefix+"/mcp" && !publicRead(r) {
-				writeError(w, id, 403, "ACCESS_DENIED", "Personal API tokens are read-only.")
+			if r.URL.Path != Prefix+"/mcp" && !publicRead(r) && !(r.Method == "POST" && r.URL.Path == Prefix+"/api/admin/v1/repo/prepare") {
+				writeError(w, id, 403, "ACCESS_DENIED", "Personal API tokens can read and prepare indexes only.")
 				return
 			}
 			personal = true
@@ -238,7 +239,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 		}
 		if r.URL.Path == Prefix+"/mcp" {
 			r.Body = http.MaxBytesReader(w, r.Body, c.MaxBodyBytes)
-			if personal && identity.CanPrepare(r.Context()) {
+			if personal && preparers.allowed(r.Context(), s) {
 				personalMCP.ServeHTTP(w, r)
 			} else if anonymous || personal {
 				readOnlyMCP.ServeHTTP(w, r)
@@ -491,6 +492,9 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 			var ce *contract.Error
 			if errors.As(err, &ce) {
 				status = ce.HTTPStatus
+				if ce.RetryAfterSeconds > 0 {
+					w.Header().Set("Retry-After", strconv.Itoa(ce.RetryAfterSeconds))
+				}
 				writeError(w, id, status, ce.Code, ce.Message)
 			} else {
 				status = 503
