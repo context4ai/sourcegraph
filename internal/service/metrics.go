@@ -176,7 +176,7 @@ func (s *Service) Statistics() any {
 	v := s.statisticsSnapshot(time.Now())
 	// The returned maps, slices and optional resource values belong to this
 	// caller. Their allocation/copying never holds the Observe mutex.
-	return map[string]any{"observations_dropped": s.metrics.dropped.Load(), "observations_pending": len(s.metrics.queue), "instance_id": s.boot, "sampled_at": v.sampledAt, "buckets": copyBuckets(v.buckets), "storage": maps.Clone(v.storage), "resources": copyResources(v.resources), "latency_bounds_ms": latencyBounds, "latency_bucket_mode": "disjoint-upper-bounds-with-overflow", "last_persisted_at": v.persisted, "scope": "current process search/read/read_many; 24-hour rolling minute buckets; P95 is a histogram upper bound; snapshot cached up to one second"}
+	return map[string]any{"observations_dropped": s.metrics.dropped.Load(), "observations_pending": len(s.metrics.queue), "instance_id": s.boot, "sampled_at": v.sampledAt, "buckets": copyBuckets(v.buckets), "storage": maps.Clone(v.storage), "resources": copyResources(v.resources), "index_collection": s.IndexCollection(), "latency_bounds_ms": latencyBounds, "latency_bucket_mode": "disjoint-upper-bounds-with-overflow", "last_persisted_at": v.persisted, "scope": "current process search/read/read_many; 24-hour rolling minute buckets; P95 is a histogram upper bound; snapshot cached up to one second"}
 }
 
 // PublishObservations is independent of query execution. Missing samples stay
@@ -255,5 +255,5 @@ func observationPayload(snapshot map[string]any) map[string]any {
 		items = append(items, traffic{repo, n})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Repo < items[j].Repo })
-	return map[string]any{"observations_dropped": snapshot["observations_dropped"], "schema": 2, "instance_id": snapshot["instance_id"], "sampled_at": snapshot["sampled_at"], "resources": snapshot["resources"], "storage": snapshot["storage"], "requests_60m": requests, "errors_60m": failed, "repo_requests_60m": items}
+	return map[string]any{"observations_dropped": snapshot["observations_dropped"], "schema": 2, "instance_id": snapshot["instance_id"], "sampled_at": snapshot["sampled_at"], "resources": snapshot["resources"], "storage": snapshot["storage"], "index_collection": snapshot["index_collection"], "requests_60m": requests, "errors_60m": failed, "repo_requests_60m": items}
 }

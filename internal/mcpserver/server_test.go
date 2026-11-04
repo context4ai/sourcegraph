@@ -103,7 +103,10 @@ func TestSearchTextBudget(t *testing.T) {
 
 func TestPrepareStillChecksAuthorization(t *testing.T) {
 	calls := 0
-	session, ctx := connectTest(t, NewWithPrepareAuthorization(nil, func(context.Context) error {
+	session, ctx := connectTest(t, NewWithPrepareAuthorization(nil, func(_ context.Context, repo string) error {
+		if repo != "org/repo" {
+			t.Errorf("guard saw repository %q", repo)
+		}
 		calls++
 		return contract.Fail("ACCESS_DENIED", "Preparation denied.", 403)
 	}))

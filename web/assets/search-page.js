@@ -5,7 +5,8 @@ let controller, timer, lastSent=0, composing=false, typing=null;
 const prepareKeys=new Map();
 function savedRepo(){try{return localStorage.getItem('cs.lastRepo')||'';}catch{return '';}}
 function rememberRepo(repo){try{localStorage.setItem('cs.lastRepo',repo);}catch{}}
-function canPrepare(){return API.policy?.public_prepare===true||A.canManage();}
+// Administrators and this repository's managers may prepare; the catalog lists managers to signed-in callers.
+function canPrepare(){if(API.policy?.public_prepare===true||A.canManage())return true;const me=A.user()?.id,r=state.repo&&row(state.repo);return !!(me&&r&&Array.isArray(r.managers)&&r.managers.some(p=>p.id===me));}
 const field = new window.Field($('#field')); // Decorative state only; it never manufactures progress counts.
 const input = $('#q');
 // Samples read like the rg calls an Agent would make; each sets the same options as the toggles.
@@ -118,7 +119,7 @@ function errorNotice(error) {
  }else if(code==='INDEX_NOT_READY'){
   const useOld=old&&!FULL_SHA.test(state.revision)&&old.commit!==state.revision;
   msg='<div class="text-[14px]"><p class="flex items-center gap-2"><span class="dot text-warn"></span>'+t('这个版本还不能搜索，索引尚未准备好。','This version is not searchable yet; its index is not ready.')+'</p><div class="mt-3 flex flex-wrap items-center gap-2">'+
-   (canPrepare()?button('prepare',t('准备这个版本','Prepare this version'),true):A.user()?'<span class="text-[13px] text-muted">'+t('准备版本需要管理权限','Preparing a version requires management access')+'</span>':button('search-login',t('登录后准备','Sign in to prepare'),true))+
+   (canPrepare()?button('prepare',t('准备这个版本','Prepare this version'),true):A.user()?'<span class="text-[13px] text-muted">'+t('准备版本需要仓库管理员或站点管理员权限','Preparing a version requires repository or site management access')+'</span>':button('search-login',t('登录后准备','Sign in to prepare'),true))+
    (useOld?button('use-old',t('搜索上次可用的 <span class="font-mono">'+A.short(old.commit)+'</span>','Search last available <span class="font-mono">'+A.short(old.commit)+'</span>')):'')+progress+'</div></div>';
  }else{
   const reasons={DEFAULT_BRANCH_UNDETERMINED:t('无法确定默认分支，请在仓库选择器里选一个分支。','The default branch is ambiguous. Pick a branch in the repository picker.'),DEFAULT_BRANCH_NOT_OBSERVED:t('默认分支还没有同步过。','The default branch has not been synchronized yet.'),AUTHENTICATION_REQUIRED:t('登录后才能搜索。','Sign in to search.'),REPOSITORY_DISABLED:t('这个仓库已停用，不能搜索。','This repository is disabled and cannot be searched.')};

@@ -39,8 +39,9 @@ func (s *Service) Run(ctx context.Context) {
 			return
 		case <-tick.C:
 			s.scan(ctx)
-			budget, stop := context.WithTimeout(ctx, 3*time.Second)
-			_ = s.Collect(budget)
+			// Collection reports its own outcome through IndexCollection and logs.
+			budget, stop := context.WithTimeout(ctx, 30*time.Second)
+			_, _ = s.Collect(budget)
 			stop()
 		}
 	}

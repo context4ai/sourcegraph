@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -61,6 +62,11 @@ const (
 	// legacySyncIntervalMinutes keeps records saved before the interval was
 	// stored (zero) on the interval they always had.
 	legacySyncIntervalMinutes = 5
+	// ManualCooldown is the least time between two manual requests that queue
+	// new work on one repository. Joining queued or running work is not paced.
+	ManualCooldown = 30 * time.Second
+	// maxReceipts bounds idempotency receipts; the oldest is dropped first.
+	maxReceipts = 256
 )
 
 func ValidateSyncInterval(minutes int) error {
@@ -115,6 +121,9 @@ type DiskUsage struct {
 }
 
 type Repository struct {
+	// ManualQueuedAt is when the last manual request queued new work; it paces
+	// manual preparation per repository (see ManualCooldown).
+	ManualQueuedAt  time.Time            `json:"-" bson:"manual_queued_at,omitempty"`
 	SnapshotStorage bool                 `json:"snapshot_storage" bson:"snapshot_storage,omitempty"`
 	PinnedCommits   []string             `json:"pinned_commits" bson:"pinned_commits,omitempty"`
 	MaxStorageBytes int64                `json:"max_storage_bytes" bson:"max_storage_bytes,omitempty"`
@@ -230,7 +239,19 @@ func (r *Repository) QueueSource(kind, commit, key, digest, actor, source string
 	return r.QueueScoped(kind, commit, "", key, digest, actor, source, now)
 }
 
+// QueueScoped queues scheduler and worker follow-up work; it is never paced.
 func (r *Repository) QueueScoped(kind, commit, group, key, digest, actor, source string, now time.Time) (Job, error) {
+	return r.queue(kind, commit, group, key, digest, actor, source, now, false)
+}
+
+// QueueRequested queues work a caller asked for through the website, HTTP or
+// MCP. New work is paced per repository by ManualCooldown; joining queued or
+// running identical work is not.
+func (r *Repository) QueueRequested(kind, commit, group, key, digest, actor string, now time.Time) (Job, error) {
+	return r.queue(kind, commit, group, key, digest, actor, SourceManual, now, true)
+}
+
+func (r *Repository) queue(kind, commit, group, key, digest, actor, source string, now time.Time, paced bool) (Job, error) {
 	if _, ok := r.GroupPaths(group); !ok && !(kind == "prepare" && group == "") {
 		return Job{}, contract.Fail("INVALID_PATH_GROUP", "Choose a registered path group.", 400)
 	}
@@ -267,18 +288,24 @@ func (r *Repository) QueueScoped(kind, commit, group, key, digest, actor, source
 	for i := range r.Jobs {
 		j := &r.Jobs[i]
 		if j.Group == group && j.Kind == kind && ((kind == "prepare" && j.RequestedRevision == commit) || (kind != "prepare" && j.Commit == commit)) && (j.State == "queued" || j.State == "running") {
-			if source != SourceAutomatic && len(r.Receipts) >= 256 {
-				return Job{}, contract.Fail("QUEUE_FULL", "Repository operation receipts are at their bounded capacity.", 503)
-			}
+			// Joining live work never adds queue pressure or blocks other callers.
 			j.promoteQueuedManual(source, now)
 			if source != SourceAutomatic {
-				r.Receipts = append(r.Receipts, Receipt{key, digest, j.ID, now.Add(24 * time.Hour)})
+				r.addReceipt(Receipt{key, digest, j.ID, now.Add(24 * time.Hour)})
 			}
 			return *j, nil
 		}
 	}
-	if (source != SourceAutomatic && len(r.Receipts) >= 256) || len(r.Jobs) >= 256 {
+	if len(r.Jobs) >= 256 {
 		return Job{}, contract.Fail("QUEUE_FULL", "Repository operation history is at its bounded capacity.", 503)
+	}
+	// One manual request may queue several groups at the same instant; a later
+	// request must wait out the cooldown unless it joined live work above.
+	if paced && !r.ManualQueuedAt.IsZero() && !now.Equal(r.ManualQueuedAt) {
+		if wait := ManualCooldown - now.Sub(r.ManualQueuedAt); wait > 0 {
+			seconds := int((wait + time.Second - 1) / time.Second)
+			return Job{}, contract.FailRetryAfter("RATE_LIMITED", fmt.Sprintf("This repository accepted a manual preparation less than %d seconds ago; retry after %d seconds or poll availability.", int(ManualCooldown/time.Second), seconds), 429, seconds)
+		}
 	}
 	active := 0
 	for _, j := range r.Jobs {
@@ -295,8 +322,11 @@ func (r *Repository) QueueScoped(kind, commit, group, key, digest, actor, source
 		j.Commit = ""
 	}
 	r.Jobs = append(r.Jobs, j)
+	if paced {
+		r.ManualQueuedAt = now
+	}
 	if source != SourceAutomatic {
-		r.Receipts = append(r.Receipts, Receipt{key, digest, j.ID, now.Add(24 * time.Hour)})
+		r.addReceipt(Receipt{key, digest, j.ID, now.Add(24 * time.Hour)})
 	}
 	r.Audit = append(r.Audit, Audit{actor, kind, now})
 	if len(r.Audit) > 256 {
@@ -307,6 +337,15 @@ func (r *Repository) QueueScoped(kind, commit, group, key, digest, actor, source
 
 // A manual request may take over queued automatic intent without creating a
 // second task. Running work retains its owner, fence and executor source.
+// addReceipt keeps the newest receipts. A dropped receipt only means that a very
+// old key replays as a new request; it never blocks other callers.
+func (r *Repository) addReceipt(v Receipt) {
+	if len(r.Receipts) >= maxReceipts {
+		r.Receipts = append(r.Receipts[:0], r.Receipts[len(r.Receipts)-maxReceipts+1:]...)
+	}
+	r.Receipts = append(r.Receipts, v)
+}
+
 func (j *Job) promoteQueuedManual(source string, now time.Time) {
 	if source == SourceManual && j.State == "queued" && j.EffectiveSource() == SourceAutomatic {
 		j.Source = SourceManual

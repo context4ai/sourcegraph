@@ -13,15 +13,14 @@ import (
 // APIKey keeps the digest for authentication and the plaintext so its owner can list and copy it.
 // Keys created before plaintext was stored have an empty Key and show only the prefix.
 type APIKey struct {
-	AllowPrepare bool       `bson:"allow_prepare,omitempty" json:"allow_prepare"`
-	ID           string     `bson:"_id" json:"id"`
-	UserID       string     `bson:"user_id" json:"-"`
-	Name         string     `bson:"name" json:"name"`
-	Hash         string     `bson:"key_hash" json:"-"`
-	Key          string     `bson:"key,omitempty" json:"key,omitempty"`
-	Prefix       string     `bson:"key_prefix" json:"key_prefix"`
-	Created      time.Time  `bson:"created_at" json:"created_at"`
-	Expires      *time.Time `bson:"expires_at,omitempty" json:"expires_at"`
+	ID      string     `bson:"_id" json:"id"`
+	UserID  string     `bson:"user_id" json:"-"`
+	Name    string     `bson:"name" json:"name"`
+	Hash    string     `bson:"key_hash" json:"-"`
+	Key     string     `bson:"key,omitempty" json:"key,omitempty"`
+	Prefix  string     `bson:"key_prefix" json:"key_prefix"`
+	Created time.Time  `bson:"created_at" json:"created_at"`
+	Expires *time.Time `bson:"expires_at,omitempty" json:"expires_at"`
 }
 type APIKeyStore interface {
 	CreateAPIKey(context.Context, APIKey) error
@@ -63,6 +62,8 @@ func (h *Handler) apiKeys(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	switch r.Method {
 	case "POST":
+		// allow_prepare is still accepted from older pages and ignored: every key
+		// may prepare repositories its owner can read.
 		var input struct {
 			AllowPrepare bool       `json:"allow_prepare"`
 			Name         string     `json:"name"`
@@ -85,12 +86,8 @@ func (h *Handler) apiKeys(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, "INVALID_API_KEY_INPUT")
 			return
 		}
-		if input.AllowPrepare && user.Role != roleAdmin {
-			fail(w, 403, "ADMIN_REQUIRED")
-			return
-		}
 		raw := "sgk_" + random()
-		record := APIKey{AllowPrepare: input.AllowPrepare, ID: random(), UserID: user.ID, Name: input.Name, Hash: digest(raw), Key: raw, Prefix: raw[:12], Created: now, Expires: input.Expires}
+		record := APIKey{ID: random(), UserID: user.ID, Name: input.Name, Hash: digest(raw), Key: raw, Prefix: raw[:12], Created: now, Expires: input.Expires}
 		if err = store.CreateAPIKey(ctx, record); err != nil {
 			fail(w, 503, "API_KEY_STORAGE_UNAVAILABLE")
 			return

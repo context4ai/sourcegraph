@@ -15,7 +15,8 @@ type APIKeyLookup interface {
 }
 
 // AuthorizeAPIKey authenticates an enabled user without granting administrative
-// authority. Optional prepare permission is rechecked against the current role.
+// authority. The key reads what its owner reads; index preparation is decided per
+// repository from the owner's current role and repository management.
 // Lookup on every request makes deletion and user disablement effective promptly;
 // authentication never writes last-use timestamps into the query path.
 func (h *Handler) AuthorizeAPIKey(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
@@ -60,16 +61,9 @@ func (h *Handler) AuthorizeAPIKey(w http.ResponseWriter, r *http.Request) (*http
 		fail(w, 403, "REGISTRATION_CLOSED")
 		return r, false
 	}
-	canPrepare := false
-	if key.AllowPrepare {
-		access, e := readAccess(ctx, h.store)
-		if e != nil {
-			fail(w, 503, "AUTH_STORAGE_UNAVAILABLE")
-			return r, false
-		}
-		canPrepare = access.role(user.ID) == roleAdmin
+	next := identity.WithActor(r.Context(), "api-key:"+user.ID+":"+key.ID)
+	if access.role(user.ID) == roleAdmin {
+		next = identity.WithTokenOwnerAdmin(next)
 	}
-	ctx = identity.WithActor(r.Context(), "api-key:"+user.ID+":"+key.ID)
-	ctx = identity.WithPreparePermission(ctx, canPrepare)
-	return r.WithContext(ctx), true
+	return r.WithContext(next), true
 }
