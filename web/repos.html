@@ -27,6 +27,8 @@
   <section class="border-t rule pt-8">
     <div class="flex flex-wrap items-center gap-3">
       <input id="filter" class="w-64 rounded-control bg-ink/[0.04] px-3 py-1.5 font-mono text-[13px] outline-none placeholder:text-muted/70 focus:bg-ink/[0.06]" placeholder="按名称筛选" data-en-ph="Filter by name">
+      <span id="manager-filter-wrap" class="hidden"><select id="manager-filter" class="w-48 rounded-control bg-ink/[0.04] px-3 py-1.5 text-[13px] outline-none" aria-label="按管理员筛选"></select></span>
+      <select id="sort" class="w-48 rounded-control bg-ink/[0.04] px-3 py-1.5 text-[13px] outline-none" aria-label="排序"></select>
       <label id="show-deleted-wrap" class="hidden items-center gap-2 text-[13px] text-muted"><input id="show-deleted" type="checkbox" class="accent-current"><span data-en="Show deleted">显示已删除</span></label>
       <span id="updated" class="type-fig ml-auto"></span>
     </div>

@@ -82,3 +82,31 @@ func viewRepository(ctx context.Context, row control.Repository, auth *sso.Handl
 	view.Managers = auth.People(ctx, row.EffectiveManagers())
 	return view
 }
+
+// catalogRow adds a repository's managers to the catalog for signed-in callers,
+// so the list can be filtered by who manages a repository.
+type catalogRow struct {
+	service.Summary
+	Managers []sso.Person `json:"managers,omitempty"`
+}
+
+func viewCatalog(ctx context.Context, rows []service.Summary, auth *sso.Handler) any {
+	if auth == nil || (identity.UserID(ctx) == "" && !identity.IsAdmin(ctx)) {
+		return rows
+	}
+	people := map[string]sso.Person{}
+	out := make([]catalogRow, 0, len(rows))
+	for _, row := range rows {
+		view := catalogRow{Summary: row}
+		for _, id := range row.ManagerIDs {
+			p, ok := people[id]
+			if !ok {
+				p = auth.People(ctx, []string{id})[0]
+				people[id] = p
+			}
+			view.Managers = append(view.Managers, p)
+		}
+		out = append(out, view)
+	}
+	return out
+}

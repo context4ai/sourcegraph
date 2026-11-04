@@ -271,6 +271,8 @@ type Summary struct {
 	VersionCount             int                 `json:"version_count"`
 	IndexedCount             int                 `json:"published_index_count"`
 	ObservedAt               time.Time           `json:"observed_at"`
+	// ManagerIDs feeds the signed-in catalog view; people are resolved there.
+	ManagerIDs []string `json:"-"`
 }
 
 func (s *Service) Catalog(ctx context.Context, after string) ([]Summary, error) {
@@ -287,7 +289,7 @@ func (s *Service) Catalog(ctx context.Context, after string) ([]Summary, error) 
 				n++
 			}
 		}
-		out = append(out, Summary{CodeProvider: r.CodeProvider, NextSyncAt: s.nextSyncTime(r), DiskUsage: r.DiskUsage, PublicRead: r.AllowsAnonymous(), DefaultBranch: r.DefaultBranch, IndexMode: r.EffectiveIndexMode(), PathGroups: r.PathGroups, LastIndexedAt: r.LastIndexedAt, LastIndexDurationSeconds: r.LastIndexDurationSeconds, SyncIntervalMinutes: r.SyncInterval(), StorageMissing: r.StorageMissing, ID: r.ID, Name: r.Name, Enabled: r.Enabled, Deleted: r.Deleted, Policy: r.Policy, Heads: r.Heads, VersionCount: len(r.Versions), IndexedCount: n, ObservedAt: r.ObservedAt})
+		out = append(out, Summary{CodeProvider: r.CodeProvider, NextSyncAt: s.nextSyncTime(r), DiskUsage: r.DiskUsage, PublicRead: r.AllowsAnonymous(), DefaultBranch: r.DefaultBranch, IndexMode: r.EffectiveIndexMode(), PathGroups: r.PathGroups, LastIndexedAt: r.LastIndexedAt, LastIndexDurationSeconds: r.LastIndexDurationSeconds, SyncIntervalMinutes: r.SyncInterval(), StorageMissing: r.StorageMissing, ID: r.ID, Name: r.Name, Enabled: r.Enabled, Deleted: r.Deleted, Policy: r.Policy, Heads: r.Heads, VersionCount: len(r.Versions), IndexedCount: n, ObservedAt: r.ObservedAt, ManagerIDs: r.EffectiveManagers()})
 	}
 	return out, nil
 }

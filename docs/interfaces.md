@@ -37,7 +37,7 @@ Repository routes take `?repo=owner/repository`.
 | --- | --- |
 | `GET /sourcegraph/healthz`, `GET /sourcegraph/readyz` | Liveness and readiness |
 | `GET /sourcegraph/v1/capabilities` | Supported operations |
-| `GET /sourcegraph/v1/repos` | Repository catalog |
+| `GET /sourcegraph/v1/repos` | Repository catalog; signed-in callers also get each repository's `managers` |
 | `GET /sourcegraph/v1/code-sources` | Configured code sources in display order: `id/name/host/username/anonymous/editable/locked` |
 | `GET /sourcegraph/v1/repo/availability` | Indexed commits and readiness; `/v1/repo/commits` is an alias |
 | `GET /sourcegraph/v1/repo/plugins` | Read plugins available for a revision |
