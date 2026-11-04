@@ -318,7 +318,10 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 			}
 		case Prefix + "/v1/repos", Prefix + "/api/admin/v1/repos":
 			if r.Method == "GET" {
-				result, err = s.Catalog(r.Context(), r.URL.Query().Get("after"))
+				var rows []service.Summary
+				if rows, err = s.Catalog(r.Context(), r.URL.Query().Get("after")); err == nil {
+					result = viewCatalog(r.Context(), rows, browserAuth)
+				}
 			} else if r.URL.Path == Prefix+"/api/admin/v1/repos" && method("POST") {
 				var q registrationRequest
 				if decode(&q) {

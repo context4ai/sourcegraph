@@ -22,7 +22,9 @@ func (s *Store) Snapshot(ctx context.Context, repo, revision string) (Commit, er
 	if err != nil {
 		return Commit{}, err
 	}
-	data, err := s.run(ctx, p, 128, "show", "-s", "--format=%ct", sha, "--")
+	// log --no-walk reads only the commit object. show -s still loads parents for
+	// merges, which a retained snapshot that is no longer a shallow boundary may lack.
+	data, err := s.run(ctx, p, 128, "log", "-1", "--no-walk", "--format=%ct", sha, "--")
 	if err != nil {
 		return Commit{}, err
 	}

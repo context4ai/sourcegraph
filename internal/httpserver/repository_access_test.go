@@ -238,6 +238,21 @@ func TestOrdinaryUsersRegisterAndManageTheirRepositories(t *testing.T) {
 	if _, view = s.call(bob, "GET", repo+q, ""); view["can_manage"] != false || view["creator"] == nil {
 		t.Fatalf("other user view: %v", view)
 	}
+	// The catalog lists managers for signed-in callers, so the page can filter by them.
+	catalog := func(user string) []map[string]any {
+		r := httptest.NewRequest("GET", "/sourcegraph/api/admin/v1/repos", nil)
+		if user != "" {
+			r.AddCookie(&http.Cookie{Name: "sourcegraph_session", Value: "cookie-" + user})
+		}
+		w := httptest.NewRecorder()
+		s.handler.ServeHTTP(w, r)
+		var rows []map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &rows)
+		return rows
+	}
+	if rows := catalog(bob); len(rows) != 1 || len(rows[0]["managers"].([]any)) != 1 || rows[0]["managers"].([]any)[0].(map[string]any)["name"] != "alice" {
+		t.Fatalf("signed-in catalog: %v", rows)
+	}
 	// With public read on, anonymous callers see the repository but not who manages it.
 	rev0 := s.settings.Snapshot().Access.Revision
 	if _, err := s.settings.Update(context.Background(), sitesettings.AccessName, rev0, []byte(`{"public_read":true,"allow_registration":true,"allow_user_repositories":true}`), "sso:admin"); err != nil {

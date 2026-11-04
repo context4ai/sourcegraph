@@ -24,7 +24,7 @@
     return {branches: bs, ...(defaultBranch ? {default_branch:true} : {}), days: kind === 'days' ? value : 0, count: kind === 'count' ? value : 0};
   }
   const SYNC_INTERVAL_MINUTES = Object.freeze([1,3,5,10,30,60,180,360,720,1440]);
-  const DEFAULT_SYNC_INTERVAL_MINUTES = 5;
+  const DEFAULT_SYNC_INTERVAL_MINUTES = 180;
   function syncInterval(value) {
     const minutes = Number(value);
     if (!['number','string'].includes(typeof value) || !SYNC_INTERVAL_MINUTES.includes(minutes)) throw new Error('同步间隔无效 / Invalid sync interval');

@@ -54,9 +54,13 @@ type Version struct {
 }
 
 const (
-	SourceManual               = "manual"
-	SourceAutomatic            = "automatic"
-	DefaultSyncIntervalMinutes = 5
+	SourceManual    = "manual"
+	SourceAutomatic = "automatic"
+	// DefaultSyncIntervalMinutes applies to new registrations.
+	DefaultSyncIntervalMinutes = 180
+	// legacySyncIntervalMinutes keeps records saved before the interval was
+	// stored (zero) on the interval they always had.
+	legacySyncIntervalMinutes = 5
 )
 
 func ValidateSyncInterval(minutes int) error {
@@ -205,7 +209,7 @@ func (r *Repository) Version(sha string) (Version, bool) {
 }
 func (r *Repository) SyncInterval() int {
 	if r.SyncIntervalMinutes == 0 {
-		return DefaultSyncIntervalMinutes
+		return legacySyncIntervalMinutes
 	}
 	return r.SyncIntervalMinutes
 }

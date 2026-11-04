@@ -11,6 +11,33 @@
   $('#f-git-timeout').innerHTML=M.gitTimeoutOptions(0);
   const initial=new URLSearchParams(location.search);
   $('#filter').value=initial.get('q')||''; $('#show-deleted').checked=initial.get('deleted')==='1';
+  let managerChoice=initial.get('manager')||'', sortChoice=initial.get('sort')==='disk'?'disk':'';
+  // Managers come with the catalog for signed-in callers only; the filter is hidden otherwise.
+  function managerKey(p){return p.id||p.email||p.name||'';}
+  function managerName(p){return p.name||p.email||p.id;}
+  function renderControls(){
+    const people=new Map();
+    for(const r of rows)for(const p of r.managers||[])if(managerKey(p))people.set(managerKey(p),p);
+    const me=A.user(), sel=$('#manager-filter');
+    const show=!!me&&rows.some(r=>Array.isArray(r.managers));
+    $('#manager-filter-wrap').classList.toggle('hidden',!show);
+    if(show){
+      const list=[...people.values()].sort((a,b)=>managerName(a).localeCompare(managerName(b)));
+      sel.innerHTML='<option value="">'+esc(t('全部管理员','All managers'))+'</option><option value="me">'+esc(t('我管理的','Managed by me'))+'</option><option value="none">'+esc(t('仅站点管理员','Site administrators only'))+'</option>'+
+        list.map(p=>'<option value="'+esc(managerKey(p))+'" title="'+esc(p.email||'')+'">'+esc(managerName(p))+'</option>').join('');
+      if(managerChoice&&!['me','none'].includes(managerChoice)&&!people.has(managerChoice))managerChoice='';
+      sel.value=managerChoice;
+    }
+    $('#sort').innerHTML='<option value="">'+esc(t('默认排序','Default order'))+'</option><option value="disk">'+esc(t('按占用空间排序','Sort by disk usage'))+'</option>';
+    $('#sort').value=sortChoice;
+  }
+  function matchesManager(r){
+    if(!managerChoice||!Array.isArray(r.managers))return true;
+    if(managerChoice==='none')return !r.managers.length;
+    const me=A.user(), key=managerChoice==='me'?(me&&me.id):managerChoice;
+    return r.managers.some(p=>managerKey(p)===key);
+  }
+  function diskBytes(r){const u=(details.get(r.name)||r).disk_usage;return u&&Number.isFinite(u.bytes)?u.bytes:-1;}
 
   const KIND={sync:['同步','Sync'],index:['建索引','Index']};
   function jobLine(job){
@@ -67,7 +94,9 @@
     $('#add').innerHTML=(A.user()?'':A.ICON.lock)+'<span>'+t(A.user()?'登记仓库':'登录后登记仓库',A.user()?'Register a repository':'Sign in to register')+'</span>';
     const deleted=rows.some(r=>r.deleted);
     $('#show-deleted-wrap').classList.toggle('hidden',!deleted||!A.canManage());$('#show-deleted-wrap').classList.toggle('flex',deleted&&A.canManage());
-    const f=$('#filter').value.toLowerCase(),list=rows.filter(r=>($('#show-deleted').checked||!r.deleted)&&r.name.toLowerCase().includes(f));
+    renderControls();
+    const f=$('#filter').value.toLowerCase(),list=rows.filter(r=>($('#show-deleted').checked||!r.deleted)&&r.name.toLowerCase().includes(f)&&matchesManager(r));
+    if(sortChoice==='disk')list.sort((a,b)=>diskBytes(b)-diskBytes(a)||a.name.localeCompare(b.name));
     const live=rows.filter(r=>!r.deleted);
     $('#summary').textContent=loaded?t(live.length+' 个仓库',live.length+' repositories'):'';
     $('#cards').innerHTML=list.map(card).join('');updateSyncTimes();$('#empty').classList.toggle('hidden',!loaded||!!list.length);
@@ -105,8 +134,8 @@
     finally{submitting=false;$('#submit').disabled=false;$('#submit').textContent=t('登记并准备','Register and prepare');}
   }
   $('#submit').onclick=submit;$('#form').onsubmit=submit;
-  function filter(){const p=new URLSearchParams();if($('#filter').value)p.set('q',$('#filter').value);if($('#show-deleted').checked)p.set('deleted','1');history.replaceState(null,'',location.pathname+(p.size?'?'+p:'')+location.hash);render();}
-  $('#filter').oninput=filter;$('#show-deleted').onchange=filter;
+  function filter(){managerChoice=$('#manager-filter-wrap').classList.contains('hidden')?managerChoice:$('#manager-filter').value;sortChoice=$('#sort').value;const p=new URLSearchParams();if($('#filter').value)p.set('q',$('#filter').value);if(managerChoice)p.set('manager',managerChoice);if(sortChoice)p.set('sort',sortChoice);if($('#show-deleted').checked)p.set('deleted','1');history.replaceState(null,'',location.pathname+(p.size?'?'+p:'')+location.hash);render();}
+  $('#filter').oninput=filter;$('#show-deleted').onchange=filter;$('#manager-filter').onchange=filter;$('#sort').onchange=filter;
   document.addEventListener('langchange',()=>{render();renderSyncInterval();branchInput.refresh();pathInput.refresh();});
   document.addEventListener('app:auth',render);
   const poller=M.poll(load,10000,60);
