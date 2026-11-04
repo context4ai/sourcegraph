@@ -87,11 +87,11 @@
   // Everyone sees the instance that answered; administrators see every instance with a recent heartbeat.
   // Expired indexes waiting for collection and the latest round's outcome.
   function collectionLine(c){
-    if(!c||!c.last_run_at)return '';
+    if(!c||!A.validTime(c.last_run_at))return '';
     const reasons={round_budget_exhausted:t('本轮时间用尽','round budget used up'),registry_unavailable:t('读取仓库记录失败','registry unavailable'),remove_failed:t('删除文件失败','file removal failed'),manifest_scan_failed:t('扫描索引清单失败','manifest scan failed')};
     const pending=c.pending_generations?t('待回收索引 '+c.pending_generations+' 个 · '+M.bytes(c.pending_bytes),c.pending_generations+' expired indexes · '+M.bytes(c.pending_bytes)):t('无待回收索引','No expired indexes');
     const busy=c.busy_repositories?t('，'+c.busy_repositories+' 个仓库忙碌顺延',', '+c.busy_repositories+' busy, deferred'):'';
-    const last=c.last_reclaim_at?t('；上次回收 '+ago(c.last_reclaim_at),'; last reclaimed '+ago(c.last_reclaim_at)):'';
+    const last=A.validTime(c.last_reclaim_at)?t('；上次回收 '+ago(c.last_reclaim_at),'; last reclaimed '+ago(c.last_reclaim_at)):'';
     const err=c.last_error?'<span class="text-warn" title="'+esc(ago(c.last_error_at))+'">'+t('；最近问题：','; last issue: ')+esc(reasons[c.last_error]||c.last_error)+'</span>':'';
     return '<div class="mt-1.5 truncate text-[12.5px] text-muted">'+esc(pending+busy+last)+err+'</div>';
   }
