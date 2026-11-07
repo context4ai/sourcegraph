@@ -50,11 +50,15 @@ Repository routes take `?repo=owner/repository`.
 
 Repository registration, maintenance, statistics and site settings live under `/sourcegraph/api/admin/` and are used by the website's administration pages. Use the Connect page for current request examples.
 
+### Repository visibility
+
+Each repository is public or private (`public_read`, default `true`; repositories registered before the field existed stay public). Anonymous callers read public repositories only, and only while the site allows public reading. A private repository is visible only to its creator, its managers, site administrators signed in on the website and the deployment credential. Personal API keys read as their owner: public repositories plus the private ones the owner created or manages, even when the owner is a site administrator. Every other caller gets the same `404 REPOSITORY_NOT_FOUND` as for an unregistered name from details, search, read, list, diff, plugins, prepare and MCP tools, and catalogs list only visible repositories. Statistics omit all repository names for anonymous callers; other callers without site-wide read keep only registered repositories they can see plus the `_overflow` aggregate, so unregistered, deleted and hidden names look the same. Registering an existing name returns `409 REPOSITORY_EXISTS` with its registrant in `creator` (`id/name/email/department`); the website suggests asking them to be added as a manager, or a site administrator when no registrant is recorded. Background synchronization, indexing and cleanup are not narrowed by visibility.
+
 ### Repository managers
 
 Site administrators manage every repository. The site setting **Let signed-in users register repositories** (`access.allow_user_repositories`) defaults to off; older settings without the field read as off, so upgrading does not change who can register. When it is on, any signed-in user can register a repository and becomes its only manager. Repositories registered before managers existed treat their creator as manager until the list is first edited; after that the stored list is used even when empty, leaving management to administrators. A repository has at most 50 managers.
 
-Repository managers and administrators can use every `?repo=` management route on that repository: edit settings, preview, prepare and add indexes, list commit options, clean up, cancel jobs, delete and purge, and add or remove managers, including themselves. Others receive `403 REPOSITORY_MANAGEMENT_DENIED`; registration while the setting is off returns `403 REGISTRATION_DISABLED`. Users, site settings, global code-source tokens and other site-wide routes stay administrator-only. Personal API keys read what their owner reads and may call only the prepare route besides that.
+Repository managers and administrators can use every `?repo=` management route on that repository: edit settings, preview, prepare and add indexes, list commit options, clean up, cancel jobs, delete and purge, and add or remove managers, including themselves. Others receive `403 REPOSITORY_MANAGEMENT_DENIED`; registration while the setting is off returns `403 REGISTRATION_DISABLED`. Users, site settings, global code-source tokens and other site-wide routes stay administrator-only. Personal API keys read what their owner reads (see [Repository visibility](#repository-visibility)) and may call only the prepare route besides that; a site administrator's key prepares only repositories it can see.
 
 | Route | Purpose |
 | --- | --- |
@@ -92,7 +96,7 @@ sourcegraph-cli read -repo context4ai/context -path README.md -start-line 1 -end
 | `SOURCEGRAPH_URL` | Service URL, default `https://context4ai.org/sourcegraph`; must be a credential-free HTTPS URL |
 | `SOURCEGRAPH_API_TOKEN` | Optional bearer credential, at least 32 characters |
 
-Personal API keys are created from a signed-in user's settings. A key can prepare (MCP `prepare` or `POST /api/admin/v1/repo/prepare`) a repository its owner manages, or any repository when its owner is currently a site administrator; this is checked on every call. MCP lists `prepare` only for keys whose owner is an administrator or manages at least one repository (refreshed within a minute). Keys are limited to 10 prepare calls a minute.
+Personal API keys are created from a signed-in user's settings. A key can prepare (MCP `prepare` or `POST /api/admin/v1/repo/prepare`) a repository its owner manages, or any repository it can see when its owner is currently a site administrator; this is checked on every call. MCP lists `prepare` only for keys whose owner is an administrator or manages at least one repository (refreshed within a minute). Keys are limited to 10 prepare calls a minute.
 
 Manual preparation is paced per repository across the website, HTTP and MCP. A request identical to a queued or running job (same group, kind and revision) returns that job and adds no queue load. Any other new request within 30 seconds of the repository's last accepted manual request returns `429 RATE_LIMITED` with `Retry-After`; one request queuing every monorepo group is a single request. Scheduled work is not paced.
 

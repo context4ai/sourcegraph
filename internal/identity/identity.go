@@ -52,10 +52,24 @@ func IsAdmin(ctx context.Context) bool {
 	return value
 }
 
+// ReadsAllRepositories reports whether repository visibility does not narrow
+// the caller: an administrator session, the deployment credential, or
+// background work that carries no request identity. Every HTTP request is
+// anonymous, a session or a personal token by the time it reaches the service,
+// so an empty actor never comes from a caller.
+func ReadsAllRepositories(ctx context.Context) bool {
+	if IsAdmin(ctx) {
+		return true
+	}
+	actor, _ := ctx.Value(actorKey{}).(string)
+	return actor == "" && !IsAnonymous(ctx)
+}
+
 type ownerAdminKey struct{}
 
 // WithTokenOwnerAdmin records that a personal token's owner is currently an
-// administrator. It only widens index preparation, never site management.
+// administrator. It only widens index preparation of repositories the token can
+// see, never repository visibility or site management.
 func WithTokenOwnerAdmin(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ownerAdminKey{}, true)
 }

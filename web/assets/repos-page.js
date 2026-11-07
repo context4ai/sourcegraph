@@ -125,12 +125,14 @@
   document.addEventListener('keydown',e=>{if(e.key==='Escape')close();if(e.key==='Tab'&&!$('#drawer').classList.contains('hidden')){const ns=[...$('#drawer').querySelectorAll('button,input,select')].filter(n=>!n.disabled);const a=ns[0],z=ns[ns.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus();}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus();}}});
   $('#f-name').addEventListener('input',()=>{$('#form-error').textContent='';});
   $('#f-sync-interval').addEventListener('change',()=>{$('#form-error').textContent='';});
+  // A name registered by someone else may be hidden; point to its registrant instead.
+  function taken(c){const who=c&&c.name?c.name+(c.email?' ('+c.email+')':''):'';return who?t('该仓库已由 '+who+' 登记。如需管理，请联系对方将你加入仓库管理员','This repository is already registered by '+who+'. To manage it, ask them to add you as a repository manager'):t('该仓库已登记。如需管理，请联系站点管理员将你加入仓库管理员','This repository is already registered. To manage it, ask a site administrator to add you as a repository manager');}
   async function submit(e){if(e)e.preventDefault();if(submitting||!M.manage(canRegister())||!$('#form').reportValidity())return;let body;
     try {const name=M.repositoryName($('#f-name').value);if(rows.some(r=>r.name===name))throw new Error(t('该仓库已登记，请到详情页修改','This repository is already registered. Edit it from its details page'));body={name,git_timeout_minutes:M.gitTimeout($('#f-git-timeout').value),code_provider:$('#f-code-provider').value,index_mode:$('#f-index-mode').value,public_read:$('#f-ack').checked,policy:{branches:branchInput.value(),...(branchInput.usesDefault()?{default_branch:true}:{})},sync_interval_minutes:M.syncInterval($('#f-sync-interval').value)};if(body.index_mode==='monorepo')body.path_groups=pathInput.value();}
     catch(e){$('#form-error').textContent=e.message;return;}
     submitting=true;$('#submit').disabled=true;$('#submit').textContent=t('提交中','Submitting');$('#form-error').textContent='';
     try {const r=await API.request('/api/admin/v1/repos',{method:'POST',body,headers:{'Idempotency-Key':keys.get(body)}});keys.done(body);A.toast(t('已登记，首轮同步已排队','Registered, first sync queued'));location.assign('/sourcegraph/repo?repo='+encodeURIComponent(r.name)+'&tab=jobs');}
-    catch(e){$('#form-error').textContent=M.error(e);}
+    catch(e){$('#form-error').textContent=e.code==='REPOSITORY_EXISTS'?taken(e.creator):M.error(e);}
     finally{submitting=false;$('#submit').disabled=false;$('#submit').textContent=t('登记并准备','Register and prepare');}
   }
   $('#submit').onclick=submit;$('#form').onsubmit=submit;

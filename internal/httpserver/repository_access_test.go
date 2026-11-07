@@ -32,6 +32,7 @@ type people struct {
 	mu       sync.Mutex
 	users    map[string]sso.User
 	sessions map[string]sso.Session
+	keys     map[string]sso.APIKey
 	access   sso.AccessControl
 }
 
@@ -77,6 +78,14 @@ func (p *people) GetSession(_ context.Context, id string) (sso.Session, error) {
 	return sso.Session{}, sso.ErrNotFound
 }
 func (p *people) DeleteSession(context.Context, string) error { return nil }
+func (p *people) FindAPIKey(_ context.Context, hash string) (sso.APIKey, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if k, ok := p.keys[hash]; ok {
+		return k, nil
+	}
+	return sso.APIKey{}, sso.ErrNotFound
+}
 
 // repositories is an in-memory service.Store.
 type repositories struct {
@@ -126,6 +135,7 @@ type site struct {
 	handler  http.Handler
 	settings *sitesettings.Service
 	db       *repositories
+	people   *people
 }
 
 // fakeIssuer serves just enough OIDC discovery for sso.New; no login runs.
@@ -167,7 +177,7 @@ func newSite(t *testing.T, users map[string]string, admins ...string) *site {
 		t.Fatal(err)
 	}
 	t.Cleanup(s.Close)
-	return &site{t: t, handler: RuntimeWithSettings(config.Defaults(), slog.New(slog.NewTextHandler(io.Discard, nil)), s, strings.Repeat("t", 32), settings, auth), settings: settings, db: db}
+	return &site{t: t, handler: RuntimeWithSettings(config.Defaults(), slog.New(slog.NewTextHandler(io.Discard, nil)), s, strings.Repeat("t", 32), settings, auth), settings: settings, db: db, people: store}
 }
 
 // call sends a browser request as user (empty for anonymous) and decodes the JSON body.

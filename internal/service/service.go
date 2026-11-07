@@ -299,8 +299,9 @@ func (s *Service) Repo(ctx context.Context, name string) (control.Repository, er
 		return control.Repository{}, e
 	}
 	r, e := s.DB.Get(ctx, name)
-	if e == nil && identity.IsAnonymous(ctx) && !r.AllowsAnonymous() {
-		return control.Repository{}, contract.Fail("REPOSITORY_NOT_FOUND", "Repository is not available.", 404)
+	if e == nil && !visible(ctx, r) {
+		// Same response as an unregistered name, so private names do not leak.
+		return control.Repository{}, contract.Fail("REPOSITORY_NOT_FOUND", "Repository is not registered.", 404)
 	}
 	return projectRepository(s.markStorage(r)), e
 }
