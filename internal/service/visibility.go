@@ -6,9 +6,22 @@ import (
 	"github.com/context4ai/sourcegraph/internal/identity"
 )
 
+// visible reports whether the caller may list, search and read r. Repositories
+// registered before per-repository visibility have no public_read and stay
+// public. A private repository is visible to its creator and managers, site
+// administrators and the deployment credential; a personal token reads as its
+// owner, so an administrator's token sees only what the owner created or manages.
+func visible(ctx context.Context, r control.Repository) bool {
+	if r.AllowsAnonymous() || identity.ReadsAllRepositories(ctx) {
+		return true
+	}
+	user := identity.UserID(ctx)
+	return user != "" && !identity.IsAnonymous(ctx) && (r.CreatorID == user || r.IsManager(user))
+}
+
 // Fill a visible page, rather than making hidden rows truncate pagination.
 func (s *Service) catalogRows(ctx context.Context, after string) ([]control.Repository, error) {
-	if !identity.IsAnonymous(ctx) {
+	if identity.ReadsAllRepositories(ctx) {
 		return s.DB.List(ctx, after, 100)
 	}
 	out := []control.Repository{}
@@ -18,7 +31,7 @@ func (s *Service) catalogRows(ctx context.Context, after string) ([]control.Repo
 			return nil, err
 		}
 		for _, r := range rows {
-			if r.AllowsAnonymous() {
+			if visible(ctx, r) {
 				out = append(out, r)
 				if len(out) == 100 {
 					return out, nil
@@ -35,15 +48,44 @@ func (s *Service) catalogRows(ctx context.Context, after string) ([]control.Repo
 	}
 }
 
-// Anonymous site statistics must not disclose names of private repositories.
+// Site statistics must not disclose names of repositories the caller cannot
+// see, nor whether a guessed name is registered. Callers that do not read every
+// repository keep only rows of registered repositories they can see, plus the
+// "_overflow" aggregate; anonymous callers get no per-repository rows.
 func (s *Service) StatisticsFor(ctx context.Context) any {
 	result := s.Statistics().(map[string]any)
-	if identity.IsAnonymous(ctx) {
-		buckets := result["buckets"].([]Bucket)
-		for i := range buckets {
-			buckets[i].ByRepo = map[string]Metric{}
-		}
-		result["buckets"] = buckets
+	if identity.ReadsAllRepositories(ctx) {
+		return result
 	}
+	shown := map[string]bool{}
+	if !identity.IsAnonymous(ctx) {
+		shown = s.visibleNames(ctx)
+		shown["_overflow"] = true
+	}
+	buckets := result["buckets"].([]Bucket)
+	for i := range buckets {
+		for name := range buckets[i].ByRepo {
+			if !shown[name] {
+				delete(buckets[i].ByRepo, name)
+			}
+		}
+	}
+	result["buckets"] = buckets
 	return result
+}
+
+// visibleNames returns the registered repositories the caller can see, or an
+// empty set when the registry cannot be read completely.
+func (s *Service) visibleNames(ctx context.Context) map[string]bool {
+	names := map[string]bool{}
+	err := s.eachRepository(ctx, func(r control.Repository) error {
+		if visible(ctx, r) {
+			names[r.Name] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return map[string]bool{}
+	}
+	return names
 }

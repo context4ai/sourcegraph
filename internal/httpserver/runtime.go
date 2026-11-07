@@ -271,6 +271,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 		}
 		var result any
 		var err error
+		var existsCreator *sso.Person
 		decode := func(v any) bool {
 			b, e := io.ReadAll(http.MaxBytesReader(w, r.Body, c.MaxBodyBytes))
 			if e == nil {
@@ -333,7 +334,15 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 						if q.SyncIntervalMinutes != nil {
 							interval = *q.SyncIntervalMinutes
 						}
-						result, err = s.RegisterWithGitTimeout(r.Context(), q.Name, policy, interval, q.IndexMode, q.PathGroups, q.PublicRead, q.CodeProvider, q.GitTimeoutMinutes, r.Header.Get("Idempotency-Key"))
+						var row control.Repository
+						row, err = s.RegisterWithGitTimeout(r.Context(), q.Name, policy, interval, q.IndexMode, q.PathGroups, q.PublicRead, q.CodeProvider, q.GitTimeoutMinutes, r.Header.Get("Idempotency-Key"))
+						result = row
+						// A taken name names its registrant, so the caller can ask to become a manager.
+						var ce *contract.Error
+						if row.CreatorID != "" && browserAuth != nil && errors.As(err, &ce) && ce.Code == "REPOSITORY_EXISTS" {
+							creator := browserAuth.People(r.Context(), []string{row.CreatorID})[0]
+							existsCreator = &creator
+						}
 					}
 					status = 202
 				}
@@ -495,7 +504,11 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				if ce.RetryAfterSeconds > 0 {
 					w.Header().Set("Retry-After", strconv.Itoa(ce.RetryAfterSeconds))
 				}
-				writeError(w, id, status, ce.Code, ce.Message)
+				if existsCreator != nil {
+					writeJSON(w, status, registrationConflict{ErrorResponse: contract.ErrorResponse{Error: ce.Message, Meta: contract.Meta{Protocol: "zoekt-single-repo-v1", RequestID: id, Status: "error", Code: ce.Code}}, Creator: existsCreator})
+				} else {
+					writeError(w, id, status, ce.Code, ce.Message)
+				}
 			} else {
 				status = 503
 				writeError(w, id, status, "DEPENDENCY_UNAVAILABLE", "Operation could not complete within its budget.")

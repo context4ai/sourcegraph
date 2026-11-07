@@ -9,10 +9,15 @@ import (
 
 // AuthorizePrepare admits site administrators, the deployment credential, a
 // personal token whose owner is currently an administrator, and the
-// repository's managers through their session or personal token.
+// repository's managers through their session or personal token. An
+// administrator's token prepares only repositories it can see.
 func (s *Service) AuthorizePrepare(ctx context.Context, name string) error {
-	if identity.IsAdmin(ctx) || identity.TokenOwnerAdmin(ctx) {
+	if identity.IsAdmin(ctx) {
 		return nil
+	}
+	if identity.TokenOwnerAdmin(ctx) {
+		_, err := s.Repo(ctx, name)
+		return err
 	}
 	user := identity.UserID(ctx)
 	if user == "" || identity.IsAnonymous(ctx) {

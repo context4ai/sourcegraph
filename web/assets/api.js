@@ -66,7 +66,7 @@
     if (!response.ok) {
       var code = body.Meta && body.Meta.Code || body.error || 'HTTP_' + response.status;
       var error = new Error(message(code, body.Error || body.message || code));
-      error.code = code; error.status = response.status; error.requestId = response.headers.get('X-Request-ID') || body.Meta && body.Meta.RequestID;
+      error.code = code; error.status = response.status; error.creator = body.creator; error.requestId = response.headers.get('X-Request-ID') || body.Meta && body.Meta.RequestID;
       error.detail = body.Error || ''; error.retryAfter = response.headers.get('Retry-After');
       throw error;
     }

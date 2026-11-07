@@ -63,6 +63,12 @@ func authorizeDelegated(ctx context.Context, r *http.Request, s *service.Service
 	return nil
 }
 
+// registrationConflict is the 409 for a taken name, with its registrant.
+type registrationConflict struct {
+	contract.ErrorResponse
+	Creator *sso.Person `json:"creator"`
+}
+
 // repositoryView adds who created and manages a repository, and whether the
 // caller may manage it. People are shown to signed-in callers only.
 type repositoryView struct {
