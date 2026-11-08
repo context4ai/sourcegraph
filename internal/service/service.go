@@ -371,7 +371,7 @@ func eligible(r control.Repository, revision string) (control.Version, error) {
 		return control.Version{}, contract.Fail("SHORT_SHA_UNSUPPORTED", "Abbreviated commit SHAs are not supported; obtain the original full 40-character lowercase SHA from trusted source metadata. Do not guess or switch branches.", 400)
 	}
 	if (revision == branch && isHexRevision(revision)) || gitstore.ValidateRevision(revision) != nil || (strings.HasPrefix(revision, "refs/") && revision == branch) {
-		return control.Version{}, contract.Fail("INVALID_REVISION", "Use a monitored branch or a full 40-character lowercase commit SHA; HEAD, tags and arbitrary refs are not supported.", 400)
+		return control.Version{}, contract.Fail("INVALID_REVISION", "Use a monitored branch or a full 40-character lowercase commit SHA; resolve also accepts other branch and tag names. HEAD, revision expressions, other ref namespaces and names with unsupported characters are rejected.", 400)
 	}
 	return control.Version{}, contract.Fail("BRANCH_NOT_MONITORED", "The requested branch is not monitored; inspect availability for configured branches without substituting a different baseline.", 404)
 }

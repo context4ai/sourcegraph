@@ -41,3 +41,33 @@ func TestPluginDiscoveryRouteAndVisibility(t *testing.T) {
 		}
 	}
 }
+
+func TestRefsRouteAcceptsItsFilters(t *testing.T) {
+	store := &pluginRepoStore{public: true}
+	s, e := service.New(store, t.TempDir(), "", "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.Close()
+	h := Runtime(config.Defaults(), slog.New(slog.NewTextHandler(io.Discard, nil)), s, "")
+	for _, tc := range []struct {
+		query, code string
+	}{
+		// Filters reach the service, which validates their values.
+		{"&kind=tag&query=v1&author=a&title=b&sort=name&first=5&until=2026-01-01&since=yesterday", "INVALID_TIME"},
+		{"&kind=tag&kind=branch", "INVALID_QUERY_PARAMETERS"},
+		{"&unknown=1", "INVALID_QUERY_PARAMETERS"},
+	} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("GET", "/sourcegraph/v1/repo/refs?repo=org/repo"+tc.query, nil))
+		if w.Code != 400 || !strings.Contains(w.Body.String(), tc.code) {
+			t.Fatalf("%s: %d %s", tc.query, w.Code, w.Body.String())
+		}
+	}
+	// A filter name is accepted only on the refs route.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/sourcegraph/v1/repo/availability?repo=org/repo&kind=tag", nil))
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "INVALID_QUERY_PARAMETERS") {
+		t.Fatalf("availability: %d %s", w.Code, w.Body.String())
+	}
+}

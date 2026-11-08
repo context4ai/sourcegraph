@@ -15,6 +15,9 @@ import (
 
 // Public access is method/path specific. A future management route
 // cannot become public merely by sharing the same URL prefix.
+// refsParameters are the filters GET /v1/repo/refs accepts besides repo and after.
+var refsParameters = map[string]bool{"kind": true, "query": true, "author": true, "title": true, "since": true, "until": true, "sort": true, "first": true}
+
 func publicRead(r *http.Request) bool {
 	if r.Method == "GET" {
 		switch r.URL.Path {

@@ -250,7 +250,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 		}
 		if r.URL.RawQuery != "" {
 			for k, v := range r.URL.Query() {
-				if (k != "repo" && k != "after" && !(k == "revision" && r.URL.Path == Prefix+"/v1/repo/plugins") && !(k == "branch" && r.URL.Path == Prefix+"/api/admin/v1/repo/commit-options")) || len(v) != 1 {
+				if (k != "repo" && k != "after" && !(k == "revision" && r.URL.Path == Prefix+"/v1/repo/plugins") && !(k == "branch" && r.URL.Path == Prefix+"/api/admin/v1/repo/commit-options") && !(refsParameters[k] && r.URL.Path == Prefix+"/v1/repo/refs")) || len(v) != 1 {
 					status = 400
 					writeError(w, id, status, "INVALID_QUERY_PARAMETERS", "Unexpected or repeated query parameter.")
 					return
