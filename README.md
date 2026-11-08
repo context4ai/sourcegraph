@@ -19,7 +19,7 @@ It is built for the workload AI coding agents generate: many small, precise `sea
 
 - **Milliseconds, not seconds.** Indexed search typically completes in **under 5 ms** on the server. Deployed in the same region as its callers, a full request — network included — stays **well under 100 ms**, which is faster than running `grep` or `rg` over a local checkout.
 - **Reproducible answers.** Branches and tags resolve to a commit before anything is read, so a search result, the file it points to and a later diff all refer to the same snapshot.
-- **One contract, four surfaces.** Browser, HTTP, MCP and CLI share the same operations: `repositories`, `availability`, `resolve`, `search`, `read`, `list`, `diff` and `prepare`. MCP adds `read_many` for several reads in one call. See [interfaces](docs/interfaces.md).
+- **One contract, four surfaces.** Browser, HTTP, MCP and CLI share the same operations: `repositories`, `availability`, `resolve`, `search`, `read`, `list`, `diff` and `prepare`. MCP adds `read_many` for several reads in one call and `refs` to find branches and tags. See [interfaces](docs/interfaces.md).
 - **Agent-ready.** A stateless Streamable HTTP MCP endpoint works with any MCP client; anonymous access is read-only and limited to public repositories.
 - **Snapshot retention.** Shallow branch-head synchronization, on-demand pinned SHAs and per-repository storage budgets; see [snapshot configuration](docs/snapshots.md).
 - **Small footprint.** One process manages Git mirrors, the Zoekt child process and background indexing. SQLite by default; PostgreSQL and MongoDB are supported.

@@ -2,15 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
-	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/context4ai/sourcegraph/internal/contract"
 	"github.com/context4ai/sourcegraph/internal/control"
-	"github.com/context4ai/sourcegraph/internal/gitstore"
 )
 
 const defaultRepositoryBudget int64 = 100 << 30
@@ -104,47 +100,28 @@ func (s *Service) collectRepositorySnapshots(ctx context.Context, name string) e
 	return nil
 }
 
+// checkRepositoryBudget guards Git and index I/O while a preparation runs. It
+// never evicts (files are in use); it reclaims expired indexes once and refuses
+// only above the in-flight ceiling, 120% of the budget. Eviction happens at safe
+// points in ensureRepositoryBudget, which keeps steady-state usage under budget.
 func (s *Service) checkRepositoryBudget(ctx context.Context, r control.Repository, extra ...string) error {
-	return s.checkRepositoryBudgetOnce(ctx, r, false, extra...)
-}
-func (s *Service) checkRepositoryBudgetOnce(ctx context.Context, r control.Repository, reclaimed bool, extra ...string) error {
-	limit := r.MaxStorageBytes
-	if limit == 0 {
-		limit = defaultRepositoryBudget
-	}
-	path, err := gitstore.RepositoryDir(s.gitRoot(), r.Name)
+	limit := repositoryBudget(r)
+	ceiling := limit + limit/5
+	used, err := s.repositoryUsage(ctx, r, extra...)
 	if err != nil {
 		return err
 	}
-	meter := diskMeter{seen: map[[2]uint64]bool{}}
-	if err = meter.walk(ctx, filepath.Dir(path)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	artifacts, err := s.repositoryArtifacts(ctx, r.Name)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	for _, a := range artifacts {
-		for _, shard := range a.Shards {
-			if err = meter.walk(ctx, filepath.Join(s.Root, "index", shard)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if used >= ceiling {
+		// Expired indexes count against the budget until collected. Callers run
+		// inside this repository's job, so reclaim them first and measure again.
+		if removed, err := s.reclaimRepository(ctx, r.Name); err == nil && removed > 0 {
+			if used, err = s.repositoryUsage(ctx, r, extra...); err != nil {
 				return err
 			}
 		}
 	}
-	for _, path := range extra {
-		if err = meter.walk(ctx, path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-	}
-	if meter.bytes >= limit && !reclaimed {
-		// Expired indexes count against the budget until collected. Callers run
-		// inside this repository's job, so reclaim them first and measure again.
-		if removed, err := s.reclaimRepository(ctx, r.Name); err == nil && removed > 0 {
-			return s.checkRepositoryBudgetOnce(ctx, r, true, extra...)
-		}
-	}
-	if meter.bytes >= limit {
-		return contract.Fail("REPOSITORY_STORAGE_LIMIT", "Repository storage budget reached; release unused pinned snapshots or increase its budget.", 409)
+	if used >= ceiling {
+		return contract.Fail("REPOSITORY_STORAGE_LIMIT", "This preparation exceeds the repository storage budget; older snapshots are released before the next attempt, or raise the budget.", 409)
 	}
 	return nil
 }

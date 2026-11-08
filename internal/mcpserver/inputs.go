@@ -16,7 +16,20 @@ type availabilityInput struct {
 
 type resolveInput struct {
 	Repo     string `json:"repo" jsonschema:"Canonical namespace/repository, for example context4ai/context; not a URL."`
-	Revision string `json:"revision,omitempty" jsonschema:"Configured branch or eligible full 40-character lowercase SHA; omit for the default described in server instructions."`
+	Revision string `json:"revision,omitempty" jsonschema:"Branch name, tag name, refs/heads/<name>, refs/tags/<name> or a full 40-character lowercase SHA; omit for the default described in server instructions."`
+}
+
+type refsInput struct {
+	Repo   string `json:"repo" jsonschema:"Canonical namespace/repository, for example context4ai/context; not a URL."`
+	Kind   string `json:"kind,omitempty" jsonschema:"branch (default), tag or all."`
+	Query  string `json:"query,omitempty" jsonschema:"Case-insensitive substring of the branch or tag name."`
+	Author string `json:"author,omitempty" jsonschema:"Case-insensitive substring of the author (tagger for annotated tags) name or email."`
+	Title  string `json:"title,omitempty" jsonschema:"Case-insensitive substring of the commit title or annotated tag message first line."`
+	Since  string `json:"since,omitempty" jsonschema:"Earliest created_at, RFC 3339 or YYYY-MM-DD."`
+	Until  string `json:"until,omitempty" jsonschema:"Latest created_at, RFC 3339 or YYYY-MM-DD."`
+	Sort   string `json:"sort,omitempty" jsonschema:"created (newest first, default) or name."`
+	First  int    `json:"first,omitempty" jsonschema:"Page size 1-100, default 30."`
+	After  string `json:"after,omitempty" jsonschema:"Previous response next_cursor, passed with the same other arguments."`
 }
 
 type searchInput struct {
@@ -97,7 +110,7 @@ func inputSchema[In any](name string) *jsonschema.Schema {
 	}
 	if p := schema.Properties["first"]; p != nil {
 		limit := float64(1000)
-		if name == "diff" {
+		if name == "diff" || name == "refs" {
 			limit = 100
 		}
 		p.Maximum = &limit

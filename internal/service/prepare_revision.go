@@ -101,6 +101,10 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 		observed = observed && ok
 	}
 	if !observed && prepareSHA.MatchString(target) {
+		// Safe point before Git grows the repository: release old snapshots first.
+		if err := s.ensureRepositoryBudget(ctx, r.Name, 0); err != nil {
+			return err
+		}
 		for _, group := range groups {
 			git, _, err := s.groupGit(r, group)
 			if err != nil {
@@ -119,6 +123,8 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 			if err != nil {
 				return err
 			}
+			// Making room may revoke the oldest snapshot, so hold the query lock.
+			s.mu.Lock()
 			r, err = control.Mutate(ctx, s.DB, r.Name, func(v *control.Repository) error {
 				if _, err := v.Owned(j, time.Now().UTC()); err != nil {
 					return err
@@ -130,16 +136,24 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 				}
 				state := v.Scope(group)
 				if _, ok := v.ScopedVersion(group, target); !ok {
-					if len(state.Versions) >= 4096 {
-						return contract.Fail("SNAPSHOT_LIMIT", "Release an unused snapshot before adding another.", 409)
+					trimmed, room := trimSnapshots(state.Versions, protectedCommits(*v), snapshotLimit-1)
+					if !room {
+						return contract.Fail("SNAPSHOT_LIMIT", "Protected snapshots (branch heads, pinned snapshots and active jobs) fill this path group; remove pins you no longer need.", 409)
 					}
+					if len(trimmed) < len(state.Versions) {
+						if err := s.invalidateRetention(*v, group); err != nil {
+							return err
+						}
+					}
+					state.Versions = trimmed
+					// An on-demand snapshot is ordinary: retention and eviction release it in order.
 					state.Versions = append(state.Versions, control.Version{Commit: target, Time: commit.CommitterTime, ObservedAt: time.Now().UTC()})
 				}
-				v.PinnedCommits = appendUnique(v.PinnedCommits, target)
 				v.StorageID = s.storageID()
 				v.SetScope(group, state)
 				return nil
 			})
+			s.mu.Unlock()
 			if err != nil {
 				return err
 			}
@@ -183,9 +197,6 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 		if e != nil {
 			return e
 		}
-		if prepareSHA.MatchString(j.RequestedRevision) {
-			v.PinnedCommits = appendUnique(v.PinnedCommits, target)
-		}
 		owned.Commit = target
 		owned.Stage = "indexing"
 		return nil
@@ -203,5 +214,6 @@ func (s *Service) prepareRevision(ctx context.Context, r control.Repository, j c
 			}
 		}
 	}
+	s.applyRetention(ctx, r.Name)
 	return nil
 }

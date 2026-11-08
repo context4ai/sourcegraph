@@ -112,6 +112,42 @@ func (s *Service) Collect(ctx context.Context) (CollectionStatus, error) {
 	return s.finishCollection(round, reason), nil
 }
 
+// collectPendingGit finishes Git collection that a committed eviction or
+// retention change left behind, e.g. after a restart or a failed job, so space
+// is released without waiting for a successful synchronization. Only
+// repositories whose retention marker is missing or names removed commits are
+// touched; busy ones are retried next round. Each repository gets its Git
+// timeout; ctx is the service lifetime.
+func (s *Service) collectPendingGit(ctx context.Context) {
+	if s.DB == nil || s.Git == nil {
+		return
+	}
+	after := ""
+	for ctx.Err() == nil {
+		rows, err := s.DB.List(ctx, after, 100)
+		if err != nil {
+			return
+		}
+		for _, r := range rows {
+			after = r.ID
+			if ctx.Err() != nil || !r.Enabled || r.Deleted || !s.gitReclaimPending(r) {
+				continue
+			}
+			release, ok := s.acquireRepository(r.Name)
+			if !ok {
+				continue
+			}
+			repoCtx, cancel := context.WithTimeout(ctx, time.Duration(s.gitTimeoutMinutes(r))*time.Minute)
+			s.finishGitReclaim(repoCtx, r)
+			cancel()
+			release()
+		}
+		if len(rows) < 100 {
+			return
+		}
+	}
+}
+
 func (s *Service) finishCollection(round CollectionStatus, reason string) CollectionStatus {
 	s.collection.mu.Lock()
 	previous := s.collection.status

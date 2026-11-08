@@ -188,8 +188,17 @@ func compactOutput(name string, v any, in any) any {
 			return compactCatalog(rows)
 		}
 	case "resolve":
-		if version, ok := v.(control.Version); ok {
-			return compactVersion(version)
+		if result, ok := v.(service.ResolveResult); ok {
+			out := compactVersion(result.Version)
+			out["kind"], out["source"], out["monitored"] = result.Kind, result.Source, result.Monitored
+			putString(out, "ref", result.Ref)
+			putString(out, "author", result.Author)
+			putString(out, "title", result.Title)
+			putString(out, "hint", result.Hint)
+			if result.CreatedAt != nil {
+				putTime(out, "created_at", *result.CreatedAt)
+			}
+			return out
 		}
 	case "availability":
 		input := in.(availabilityInput)

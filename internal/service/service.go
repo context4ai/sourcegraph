@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -55,6 +56,8 @@ type Service struct {
 	Root, Helper, Token string
 	MinFree             uint64
 	mu                  sync.RWMutex
+	refState            refManager
+	gitReclaimRunning   atomic.Bool
 	boot                string
 	lock                *os.File
 }
@@ -88,6 +91,10 @@ func New(db Store, root, helper, token string) (*Service, error) {
 				break
 			}
 		}
+	}
+	// Ref discovery downloads are scratch data; leftovers of a stopped process go.
+	if err == nil {
+		err = os.RemoveAll(refsRoot(root))
 	}
 	if err != nil {
 		f.Close()
@@ -123,6 +130,7 @@ func New(db Store, root, helper, token string) (*Service, error) {
 	return &Service{Plugins: wasmplugin.New(pluginConfig), QueryLogs: querylog.New(logStore), Credentials: credentials, metrics: Metrics{queue: make(chan observation, 4096)}, DB: db, Git: g, Engine: c, Builder: indexer.Builder{Root: root, MinFree: 10 << 30}, Root: root, Helper: helper, Token: token, MinFree: 10 << 30, boot: control.NewID(), lock: f}, nil
 }
 func (s *Service) Close() {
+	s.refState.close()
 	if s.Plugins != nil {
 		s.Plugins.Close()
 	}
@@ -378,11 +386,4 @@ func isHexRevision(revision string) bool {
 		}
 	}
 	return true
-}
-func (s *Service) Resolve(ctx context.Context, name, revision string) (control.Version, error) {
-	r, e := s.Repo(ctx, name)
-	if e != nil {
-		return control.Version{}, e
-	}
-	return eligible(r, revision)
 }
