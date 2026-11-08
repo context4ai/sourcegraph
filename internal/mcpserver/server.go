@@ -59,8 +59,11 @@ func newHandler(s *service.Service, authorize func(context.Context, string) erro
 		}
 		return s.Repo(ctx, in.Repo)
 	}, includePrepare)
-	register(server, "resolve", "Resolve a branch or eligible full SHA to a fixed commit for subsequent calls. Optional before search; no fetch.", func(ctx context.Context, in resolveInput) (any, error) {
+	register(server, "resolve", "Resolve a branch, tag or full SHA of a registered repository to a full commit for subsequent calls. Monitored branches use the synchronized head; other branches and tags are looked up in the complete ref catalog or on the remote. Reports whether the commit is indexed; never downloads code or indexes. Optional before search.", func(ctx context.Context, in resolveInput) (any, error) {
 		return s.Resolve(ctx, in.Repo, in.Revision)
+	}, includePrepare)
+	register(server, "refs", "List a registered repository's branches or tags from the remote, newest first, with commit, created_at, author, title, and whether each commit is indexed. Filter by name (query), author, title or time; page with next_cursor. Listing never indexes; to read an unindexed commit a repository manager prepares its full SHA. A first listing of a large repository may answer REFS_CATALOG_PREPARING; retry after Retry-After, or resolve an exact name meanwhile.", func(ctx context.Context, in refsInput) (any, error) {
+		return s.Refs(ctx, in.Repo, service.RefsQuery{Kind: in.Kind, Query: in.Query, Author: in.Author, Title: in.Title, Since: in.Since, Until: in.Until, Sort: in.Sort, First: in.First, After: in.After})
 	}, includePrepare)
 	register(server, "search", "Like rg at one commit: pattern is a regular expression (RE2, close to rg's default syntax) matched line by line against file contents. fixed_strings is -F, ignore_case is -i, glob is -g, output=files is -l; paths limits directories. Results use canonical file paths; Via records matching symlink aliases. Inspect Meta.Partial/Truncated/Coverage; zero hits do not prove absence outside coverage. Default output is content, 10 lines per file; lower max_lines_per_file to skim many files.", func(ctx context.Context, in searchInput) (any, error) {
 		return s.Search(ctx, in.Repo, contract.SearchRequest{Revision: in.Revision, Pattern: in.Pattern, FixedStrings: in.FixedStrings, IgnoreCase: in.IgnoreCase, Glob: in.Glob, Paths: in.Paths, Output: in.Output})

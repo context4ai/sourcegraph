@@ -43,6 +43,16 @@ func (s *Service) Run(ctx context.Context) {
 			budget, stop := context.WithTimeout(ctx, 30*time.Second)
 			_, _ = s.Collect(budget)
 			stop()
+			// Git collection of large repositories outlasts the index round's
+			// budget; it runs on its own, one pass at a time, until shutdown.
+			if s.gitReclaimRunning.CompareAndSwap(false, true) {
+				workers.Add(1)
+				go func() {
+					defer workers.Done()
+					defer s.gitReclaimRunning.Store(false)
+					s.collectPendingGit(ctx)
+				}()
+			}
 		}
 	}
 }
@@ -151,6 +161,10 @@ func (s *Service) execute(parent context.Context, name string, j control.Job) {
 }
 
 func (s *Service) prepare(ctx context.Context, r control.Repository, j control.Job) error {
+	if j.Kind == "prepare" || j.Kind == "index" {
+		// Finish Git collection that an interrupted run committed before adding objects.
+		s.finishGitReclaim(ctx, r)
+	}
 	if j.Kind == "prepare" {
 		return s.prepareRevision(ctx, r, j)
 	}
@@ -165,7 +179,12 @@ func (s *Service) prepare(ctx context.Context, r control.Repository, j control.J
 		if v, ok := r.ScopedVersion(j.Group, j.Commit); ok && v.Generation != 0 {
 			return nil
 		}
-		return s.build(ctx, r, j)
+		if err := s.build(ctx, r, j); err != nil {
+			return err
+		}
+		// A build may end above budget (only 120% is enforced while it runs).
+		s.applyRetention(ctx, r.Name)
+		return nil
 	}
 	return errors.New("unsupported preparation")
 }
@@ -276,6 +295,17 @@ func (s *Service) sync(ctx context.Context, r control.Repository, j control.Job)
 	if err != nil {
 		return err
 	}
+	// Safe point before Git grows the repository: release old snapshots first.
+	if err = s.ensureRepositoryBudget(ctx, r.Name, 0); err != nil {
+		return err
+	}
+	// Eviction may have revoked versions; build on the stored state, never on the
+	// job's earlier copy, while keeping this task's resolved timeout.
+	timeout := r.GitTimeoutMinutes
+	if r, err = s.DB.Get(ctx, r.Name); err != nil {
+		return err
+	}
+	r.GitTimeoutMinutes = timeout
 	var defaultBranch string
 	e := s.withGitCredential(ctx, r, func(token string) error {
 		var err error
@@ -350,9 +380,20 @@ func (s *Service) sync(ctx context.Context, r control.Repository, j control.Job)
 			}
 			v.SnapshotStorage = true
 		}
+		previous := state.Versions
 		state.Versions = retainedSnapshots(*v, versions, heads, time.Now().UTC())
-		if len(state.Versions) > 4096 {
-			return contract.Fail("SNAPSHOT_LIMIT", "Release unused pinned snapshots before adding versions.", 409)
+		protected := protectedCommits(*v)
+		for _, sha := range heads {
+			protected[sha] = true
+		}
+		var room bool
+		if state.Versions, room = trimSnapshots(state.Versions, protected, snapshotLimit); !room {
+			return contract.Fail("SNAPSHOT_LIMIT", "Protected snapshots (branch heads, pinned snapshots and active jobs) fill this path group; remove pins you no longer need.", 409)
+		}
+		if removesVersions(previous, state.Versions) {
+			if err := s.invalidateRetention(*v, j.Group); err != nil {
+				return err
+			}
 		}
 		v.SetScope(j.Group, state)
 		return nil
@@ -369,6 +410,10 @@ func (s *Service) build(ctx context.Context, r control.Repository, j control.Job
 	}
 	git, paths, e := s.groupGit(r, j.Group)
 	if e != nil {
+		return e
+	}
+	// Safe point: no Git or index I/O for this job has started yet.
+	if e = s.ensureRepositoryBudget(ctx, r.Name, s.indexReserve(ctx, r, j.Group)); e != nil {
 		return e
 	}
 	started := time.Now()

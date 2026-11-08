@@ -316,7 +316,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 			}
 		case Prefix + "/v1/capabilities":
 			if method("GET") {
-				result = map[string]any{"Protocol": "zoekt-single-repo-v1", "Operations": []string{"search", "read", "list", "diff", "resolve", "availability", "commits", "prepare"}, "Authentication": "access-policy", "SearchProfile": "text-no-ctags", "SymbolSearch": false, "ChunkMatches": false}
+				result = map[string]any{"Protocol": "zoekt-single-repo-v1", "Operations": []string{"search", "read", "list", "diff", "resolve", "refs", "availability", "commits", "prepare"}, "Authentication": "access-policy", "SearchProfile": "text-no-ctags", "SymbolSearch": false, "ChunkMatches": false}
 			}
 		case Prefix + "/v1/repos", Prefix + "/api/admin/v1/repos":
 			if r.Method == "GET" {
@@ -457,6 +457,19 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				} else {
 					err = s.Purge(r.Context(), repo, rev)
 					result = map[string]bool{"purged": err == nil}
+				}
+			}
+		case Prefix + "/v1/repo/refs":
+			if method("GET") {
+				q := r.URL.Query()
+				first := 0
+				if value := q.Get("first"); value != "" {
+					if first, err = strconv.Atoi(value); err != nil {
+						err = contract.Fail("INVALID_LIMIT", "Use first between 1 and 100.", 400)
+					}
+				}
+				if err == nil {
+					result, err = s.Refs(r.Context(), repo, service.RefsQuery{Kind: q.Get("kind"), Query: q.Get("query"), Author: q.Get("author"), Title: q.Get("title"), Since: q.Get("since"), Until: q.Get("until"), Sort: q.Get("sort"), First: first, After: q.Get("after")})
 				}
 			}
 		case Prefix + "/v1/repo/resolve":

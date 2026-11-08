@@ -73,7 +73,7 @@ func TestCompactListDiffPreserveContinuation(t *testing.T) {
 func TestCompactResolveWire(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
 	register(server, "resolve", "test", func(context.Context, resolveInput) (any, error) {
-		return control.Version{Commit: strings.Repeat("a", 40), Indexed: false, Files: 100, Shards: 4}, nil
+		return service.ResolveResult{Version: control.Version{Commit: strings.Repeat("a", 40), Indexed: false, Files: 100, Shards: 4}, Ref: "refs/heads/feat/x", Kind: "branch", Source: "remote", Title: "feature work"}, nil
 	})
 	session, ctx := connectTest(t, mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}))
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "resolve", Arguments: map[string]any{"repo": "org/repo"}})
@@ -84,7 +84,7 @@ func TestCompactResolveWire(t *testing.T) {
 	if err = json.Unmarshal([]byte(res.Content[0].(*mcp.TextContent).Text), &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out) != 2 || out["indexed"] != false || out["commit"] != strings.Repeat("a", 40) {
+	if len(out) != 7 || out["indexed"] != false || out["commit"] != strings.Repeat("a", 40) || out["ref"] != "refs/heads/feat/x" || out["source"] != "remote" || out["monitored"] != false || out["title"] != "feature work" {
 		t.Fatal(out)
 	}
 }

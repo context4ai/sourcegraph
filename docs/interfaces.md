@@ -5,8 +5,8 @@ All routes live under `/sourcegraph/`. Repository names use `owner/repository`, 
 | Surface | Entry | Operations |
 | --- | --- | --- |
 | Browser | `/sourcegraph/` | Search, code reader, repositories, Connect page |
-| MCP | `/sourcegraph/mcp` (Streamable HTTP, stateless JSON responses) | `repositories`, `availability`, `resolve`, `search`, `read`, `read_many`, `list`, `diff`, `prepare` |
-| HTTP | Routes below | Same operations except `read_many`; read several ranges with repeated `read` calls |
+| MCP | `/sourcegraph/mcp` (Streamable HTTP, stateless JSON responses) | `repositories`, `availability`, `resolve`, `refs`, `search`, `read`, `read_many`, `list`, `diff`, `prepare` |
+| HTTP | Routes below | Same operations as MCP except `read_many`; read several ranges with repeated `read` calls |
 | CLI | `output/bin/sourcegraph-cli` | `repositories`, `availability`, `resolve`, `search`, `read`, `list`, `diff`, `prepare` |
 
 Use MCP discovery to obtain the current tool input schemas. `GET /sourcegraph/v1/capabilities` lists the HTTP operations.
@@ -29,6 +29,38 @@ For an MCP client supporting Streamable HTTP:
 
 `read_many` reads several files or line ranges in one call. Repository read plugins enrich `read` and `read_many`; see [repository plugins](ref/repository-plugins.md).
 
+Other tools accept a monitored branch or a full SHA. To work with any other branch or a tag, find it with `refs` if needed, `resolve` it to a full SHA, and use that SHA. When `indexed` is false, a repository manager prepares that SHA first.
+
+### Branches, tags and resolve
+
+`resolve` takes `repo` and an optional `revision` and returns `commit/indexed/kind/source/monitored`, plus `ref/committer_time/created_at/author/title` when known and a `hint` when the commit has no index (a repository manager, or this caller if it may prepare, can prepare the SHA). It never downloads code or builds an index.
+
+| `revision` | Resolution | `source` |
+| --- | --- | --- |
+| Omitted, or a monitored branch (also as `refs/heads/<name>`) | Last synchronized head; the remote is not asked, so it may lag the remote's latest commit. A bare name equal to a monitored branch is not checked for a same-named tag; pass `refs/tags/<name>` for the tag | `observed` |
+| Full 40-character SHA | An observed or retained version; otherwise `REVISION_NOT_ELIGIBLE` | `observed` |
+| Any other branch or tag name, `refs/heads/<name>`, `refs/tags/<name>` | The repository's ref catalog when it is fresh and not truncated; otherwise the remote is asked for exactly these names and the matching ref is downloaded to a scratch directory, without file trees, to confirm its object type and commit details, then deleted | `catalog` or `remote` |
+
+A bare name that is both a branch and a tag returns `REF_AMBIGUOUS` listing both; pass the full form. A missing name returns `REF_NOT_FOUND`, and a tag confirmed to end at a tree or blob returns `REF_NOT_COMMIT`. Resolution uses the ref as actually downloaded, so a branch that moves between listing and download resolves to the downloaded commit; an object that cannot be verified returns a retryable `REMOTE_UNAVAILABLE`, never `REF_NOT_COMMIT`. Annotated tags resolve to their commit; `created_at/author/title` describe the tag and `committer_time` the commit. Short SHAs, `HEAD` and revision expressions are still rejected. Identical concurrent remote lookups share one request, and results, including "not found", are cached for 30 seconds (at most 10,000 entries). Remote lookups run at most 2 per repository and 8 per instance, at most 64 may be running or waiting (beyond that, `REMOTE_UNAVAILABLE` with `Retry-After`), and they back off per repository after failures, from 10 seconds up to 5 minutes. Visibility is checked before every cached answer.
+
+`refs` lists a registered repository's branches or tags. Optional arguments: `kind` (`branch` default, `tag`, `all`); `query`, `author` and `title`, case-insensitive substrings of the name, the author or tagger, and the commit title or tag message first line; `since/until` (RFC 3339 or `YYYY-MM-DD`, compared with `created_at`); `sort` (`created`, newest first, the default, or `name`); `first` (1–100, default 30); `after` (the previous `next_cursor`, with the other arguments unchanged). It returns `repo/catalog/sort/refs/next_cursor/has_more` and sometimes a `hint`. Each entry has `name/ref/kind/monitored/indexed`; entries verified to end at a commit add `commit/created_at/committer_time/author/title`, annotated tags add `annotated`, and tags of trees, blobs or unverifiable objects carry `object/target_type` instead of `commit`. `created_at` is the commit time for branches and lightweight tags and the tagging time for annotated tags.
+
+`catalog.state` is `ready`; `stale` (expired, or its refresh failed: the last successful catalog is returned with its `refreshed_at` while a refresh runs in the background); or `names_only`, with `catalog.reason` `filter_unsupported` (the server cannot send commit objects without trees), `ref_limit` (more than 200,000 branches or tags) or `size_limit` (the download exceeded 256 MiB). A `names_only` catalog sorts by name when `sort` is omitted; an explicit `author/title/since/until` or `sort=created` returns `REFS_FILTER_UNAVAILABLE`. `catalog.truncated: true` means only the first 200,000 names are listed and `query` searches only those; `resolve` with a complete name does not depend on the catalog. The cursor is an offset, so a refresh between pages can repeat or skip a few entries.
+
+Catalogs live in service memory. A refresh lists the remote first, so the ref limit applies before anything is downloaded, then downloads branch and tag commit and tag objects, without file trees, into a scratch directory that is parsed and deleted. A catalog stays fresh for 5 minutes or three times its last refresh duration, whichever is longer; an expired catalog is served while one background refresh per repository runs (at most 4 per instance). Every download is checked each second against its size limit (256 MiB for a catalog, 16 MiB for a resolve lookup), a 4 GiB total for all scratch downloads and the instance free-space reserve, and is stopped and deleted when any is exceeded; scratch directories left by a stopped process are removed at startup. When catalogs together exceed 1,000,000 refs, the least recently used ones are dropped.
+
+Without any catalog, a request waits for the first refresh within its remaining deadline less a 2-second margin and otherwise returns `REFS_CATALOG_PREPARING` with `Retry-After` while the refresh continues. A failed refresh without an earlier catalog returns the remote error; with one, the stale catalog is returned. Listing never indexes.
+
+| Error | Meaning |
+| --- | --- |
+| `REF_NOT_FOUND`, `REF_AMBIGUOUS`, `REF_NOT_COMMIT` | No such branch or tag (names are case-sensitive; search with `refs`); a branch and a tag share the name; the tag does not end at a commit |
+| `REFS_CATALOG_PREPARING` | The first listing is still being prepared; retry after `Retry-After`, or resolve a complete name meanwhile |
+| `REFS_FILTER_UNAVAILABLE` | The catalog has names only; filter and sort by name |
+| `REMOTE_ACCESS_DENIED` | The code-source token this repository uses cannot read its remote; a repository manager should check it. The caller's own key is not the cause |
+| `REMOTE_UNAVAILABLE` | The remote is unavailable, timed out or backing off; retry after `Retry-After` |
+| `INSUFFICIENT_STORAGE` | The instance's free disk space is below its reserve; not the repository budget |
+| `BRANCH_NOT_MONITORED` | Returned by tools other than `resolve`, and by prepare, for an unmonitored branch; resolve it to a SHA first |
+
 ## HTTP
 
 Repository routes take `?repo=owner/repository`.
@@ -41,7 +73,8 @@ Repository routes take `?repo=owner/repository`.
 | `GET /sourcegraph/v1/code-sources` | Configured code sources in display order: `id/name/host/username/anonymous/editable/locked` |
 | `GET /sourcegraph/v1/repo/availability` | Indexed commits and readiness; `/v1/repo/commits` is an alias |
 | `GET /sourcegraph/v1/repo/plugins` | Read plugins available for a revision |
-| `POST /sourcegraph/v1/repo/resolve` | Resolve a branch or SHA to a fixed commit |
+| `POST /sourcegraph/v1/repo/resolve` | Resolve a branch, tag or SHA to a fixed commit; see [Branches, tags and resolve](#branches-tags-and-resolve) |
+| `GET /sourcegraph/v1/repo/refs` | List and search branches and tags (`kind/query/author/title/since/until/sort/first/after`) |
 | `POST /sourcegraph/v1/repo/read` | Read a line range |
 | `POST /sourcegraph/v1/repo/list` | List a directory |
 | `POST /sourcegraph/v1/repo/diff` | Changed paths between two commits |

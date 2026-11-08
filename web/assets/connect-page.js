@@ -31,7 +31,8 @@ const MORE = [
   ['read_many','同一版本批量读取多个文件行段','Read several file ranges at one commit'],
   ['list','浏览目录','Browse a directory'],
   ['diff','对比两个版本','Compare two versions'],
-  ['resolve','多个查询前先固定同一个版本','Pin one version before several queries'],
+  ['resolve','把分支、tag 或 SHA 固定为一个 commit','Pin a branch, tag or SHA to one commit'],
+  ['refs','查找仓库的分支和 tag','Find branches and tags of a repository'],
   ['repositories','列出可以搜的仓库','List searchable repositories'],
   ['availability','查看哪些版本可以搜','See which versions are searchable'],
   ['prepare','准备还不能搜的历史版本','Prepare an older version for search']
