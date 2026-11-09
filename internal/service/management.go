@@ -79,7 +79,7 @@ func (s *Service) Preview(ctx context.Context, name string, u Update) (any, erro
 	if u.SyncIntervalMinutes != nil {
 		interval = *u.SyncIntervalMinutes
 	}
-	return map[string]any{"sync_interval_minutes": interval, "revision": r.Revision, "preview": preview(r, u), "retained_versions": len(r.Versions), "note": "Retention applies at successful synchronization; pinned snapshots and branch heads remain available. Expired Git objects are reclaimed after synchronization."}, nil
+	return map[string]any{"sync_interval_minutes": interval, "revision": r.Revision, "preview": preview(r, u), "retained_versions": len(r.Versions), "note": "Retention applies after each successful synchronization and preparation; branch heads, pinned snapshots and snapshots of active jobs remain available. Released Git objects are reclaimed in the background."}, nil
 }
 func (s *Service) Update(ctx context.Context, name string, u Update, revision int64) (control.Repository, error) {
 	if e := validateUpdate(u); e != nil {
@@ -156,7 +156,8 @@ func (s *Service) Update(ctx context.Context, name string, u Update, revision in
 		}
 	}
 	// Path changes invalidate the indexed scope; retention changes take effect
-	// at synchronization while already published snapshots remain available.
+	// at the next synchronization or preparation while already published
+	// snapshots remain available.
 	if groupsChanged {
 		r.DefaultBranch = ""
 		r.ObservedAt = time.Time{}
