@@ -28,7 +28,7 @@ func run() int {
 	}
 	fs := flag.NewFlagSet("sourcegraph-cli", flag.ContinueOnError)
 	repo := fs.String("repo", "", "canonical repository")
-	revision := fs.String("revision", "", "full SHA or configured branch")
+	revision := fs.String("revision", "", "monitored branch or full SHA; resolve also accepts any branch or tag, refs/heads/<name> or refs/tags/<name>")
 	pattern := fs.String("e", "", "search pattern, like rg -e; otherwise the first argument")
 	fixed := fs.Bool("F", false, "search: match the pattern as literal text, like rg -F")
 	ignoreCase := fs.Bool("i", false, "search: ignore case, like rg -i")

@@ -117,7 +117,7 @@ sourcegraph-cli read -repo context4ai/context -path README.md -start-line 1 -end
 
 | Flag | Purpose |
 | --- | --- |
-| `-repo`, `-revision` | Repository and full SHA or configured branch |
+| `-repo`, `-revision` | Repository, and a monitored branch or full SHA; `resolve` also accepts any branch or tag name and `refs/heads/<name>` or `refs/tags/<name>` |
 | `-e`, `-F`, `-i`, `-l`, `-g` | Search pattern, literal text, ignore case, paths only, include or `!exclude` glob (repeatable) |
 | `-path`, `-start-line`, `-end-line` | Read target and range (default lines 1–100) |
 | `-first`, `-after` | Page size and cursor for `list` and `diff` |
