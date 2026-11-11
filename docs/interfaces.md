@@ -151,3 +151,10 @@ HTTP availability includes bounded historical `job_failures` summaries; see [dia
 `repository_defaults.git_timeout_minutes` sets the global default (15 minutes initially); valid global values are 15, 30, 45 and 60. Existing settings without this field read as 15. An older settings client that omits the field preserves its saved value.
 
 Registration and repository update accept `git_timeout_minutes`: 0 means inherit the current global value, and 15/30/45/60 set an override. Omitted registration values inherit; omitted PATCH values preserve the current setting. Repository details return the stored value. Preview/CAS and registration idempotency include the timeout. Only new tasks use edits; changing a timeout preserves running tasks and published indexes. The setting covers Git fetching and hydration and can be changed from system settings, registration, or repository settings.
+
+
+### Input schema and optional values
+
+MCP input schemas express nullable fields using `anyOf` with single-type branches. Optional line bounds and array filters accept omission or `null` with their existing defaults. For `read` and `read_many`, omitted or `null` `plugins` uses connection defaults; `plugins: []` disables enhancements.
+
+`read_many.files` is required and must be an array of 1–10 items; missing, `null` and empty batches fail MCP input validation before execution. Per-file range checks remain in the service, so an invalid range does not suppress other files in the batch. Clients should inspect `isError` rather than depend on the text of schema-validation errors.
