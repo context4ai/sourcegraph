@@ -33,6 +33,9 @@ func TestAllToolSchemasPortable(t *testing.T) {
 			walk = func(v any) {
 				switch v := v.(type) {
 				case map[string]any:
+					if typ, ok := v["type"].(string); ok && typ == "null" && len(v) != 1 {
+						t.Errorf("null branch contains extra keywords: %v", v)
+					}
 					if _, ok := v["type"].([]any); ok {
 						t.Errorf("array type in %s", data)
 					}

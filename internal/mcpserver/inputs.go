@@ -158,6 +158,10 @@ func portableInferredSchema(s *jsonschema.Schema) {
 	s.Types = nil
 	branches := make([]*jsonschema.Schema, 0, len(types))
 	for _, typ := range types {
+		if typ == "null" {
+			branches = append(branches, &jsonschema.Schema{Type: "null"})
+			continue
+		}
 		branch := s.CloneSchemas()
 		branch.Type = typ
 		branch.Description = ""

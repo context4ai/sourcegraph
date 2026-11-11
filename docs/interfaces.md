@@ -152,8 +152,7 @@ HTTP availability includes bounded historical `job_failures` summaries; see [dia
 
 Registration and repository update accept `git_timeout_minutes`: 0 means inherit the current global value, and 15/30/45/60 set an override. Omitted registration values inherit; omitted PATCH values preserve the current setting. Repository details return the stored value. Preview/CAS and registration idempotency include the timeout. Only new tasks use edits; changing a timeout preserves running tasks and published indexes. The setting covers Git fetching and hydration and can be changed from system settings, registration, or repository settings.
 
-
-### Input schema and optional values
+## Input schema and optional values
 
 MCP input schemas express nullable fields using `anyOf` with single-type branches. Optional line bounds and array filters accept omission or `null` with their existing defaults. For `read` and `read_many`, omitted or `null` `plugins` uses connection defaults; `plugins: []` disables enhancements.
 
