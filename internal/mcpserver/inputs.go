@@ -122,6 +122,7 @@ func inputSchema[In any](name string) *jsonschema.Schema {
 	}
 	if name == "read_many" {
 		files := schema.Properties["files"]
+		files.Type, files.Types = "array", nil // Required batch; null is not a file list.
 		files.MinItems, files.MaxItems = ptr(1), ptr(10)
 		// Per-item ranges are validated by the shared service so one bad file
 		// does not suppress valid evidence from other items in the batch.
@@ -132,6 +133,39 @@ func inputSchema[In any](name string) *jsonschema.Schema {
 		key.MinLength, key.MaxLength = ptr(1), ptr(128)
 		key.Pattern = `^[^\r\n\x00]+$`
 	}
+	portableInferredSchema(schema)
 	return schema
 }
 func ptr[T any](v T) *T { return &v }
+
+// portableInferredSchema rewrites the nullable types produced by jsonschema.For
+// into single-type anyOf branches. Keep constraints inside each branch so clients
+// can discover array items and numeric bounds alongside their type. Walk the
+// struct, slice and map shapes inferred from our input types (no custom schemas).
+func portableInferredSchema(s *jsonschema.Schema) {
+	if s == nil {
+		return
+	}
+	for _, child := range s.Properties {
+		portableInferredSchema(child)
+	}
+	portableInferredSchema(s.Items)
+	portableInferredSchema(s.AdditionalProperties)
+	if len(s.Types) == 0 {
+		return
+	}
+	types := s.Types
+	s.Types = nil
+	branches := make([]*jsonschema.Schema, 0, len(types))
+	for _, typ := range types {
+		if typ == "null" {
+			branches = append(branches, &jsonschema.Schema{Type: "null"})
+			continue
+		}
+		branch := s.CloneSchemas()
+		branch.Type = typ
+		branch.Description = ""
+		branches = append(branches, branch)
+	}
+	*s = jsonschema.Schema{Description: s.Description, AnyOf: branches}
+}
