@@ -372,3 +372,26 @@ func (s *Store) LocalRefs(ctx context.Context, dir string) (map[string]string, e
 	}
 	return refs, nil
 }
+
+// CheckRemoteAccess asks the remote for HEAD only; it succeeds when the
+// credential can read the repository, including an empty one.
+func (s *Store) CheckRemoteAccess(ctx context.Context, dir, repo string, o FetchOptions) error {
+	if err := ValidateRepo(repo); err != nil {
+		return err
+	}
+	remote := remoteURL(repo, o.Host)
+	ctx, cancel := context.WithTimeout(ctx, refTimeout(o))
+	defer cancel()
+	command := s.command(ctx, dir, append(fetchConfiguration(o), "ls-remote", remote, "HEAD")...)
+	command.Env = append(command.Env, credentialEnv(remote, o)...)
+	command.Stdout = io.Discard
+	diagnostic := &prefixTrace{limit: 64 << 10}
+	command.Stderr = diagnostic
+	if err := command.Run(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return remoteFailure(diagnostic.String(), "GIT_FETCH_FAILED", "Cannot reach the repository on the code host.")
+	}
+	return nil
+}

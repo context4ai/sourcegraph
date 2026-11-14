@@ -2,8 +2,11 @@ package httpserver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 
+	"github.com/context4ai/sourcegraph/internal/codesources"
 	"github.com/context4ai/sourcegraph/internal/contract"
 	"github.com/context4ai/sourcegraph/internal/control"
 	"github.com/context4ai/sourcegraph/internal/identity"
@@ -26,8 +29,9 @@ func repositoryManagementRoute(path string) bool {
 	return false
 }
 
+// registrationRoute covers registering and its preceding access check.
 func registrationRoute(r *http.Request) bool {
-	return r.Method == "POST" && r.URL.Path == Prefix+"/api/admin/v1/repos"
+	return r.Method == "POST" && (r.URL.Path == Prefix+"/api/admin/v1/repos" || r.URL.Path == Prefix+"/api/admin/v1/repos/access-check")
 }
 
 // delegatedRoute is opened to signed-in users at the gate; the handler then
@@ -67,6 +71,46 @@ func authorizeDelegated(ctx context.Context, r *http.Request, s *service.Service
 type registrationConflict struct {
 	contract.ErrorResponse
 	Creator *sso.Person `json:"creator"`
+}
+
+// registrationAccessFailure tells the caller where to bind a code-source token
+// when the repository cannot be fetched with the tokens a registration would use.
+type registrationAccessFailure struct {
+	contract.ErrorResponse
+	CodeProvider string `json:"code_provider"`
+	SettingsURL  string `json:"settings_url"`
+	Guidance     string `json:"guidance"`
+}
+
+// accessFailure returns guidance for credential failures of the access check, or nil.
+func accessFailure(r *http.Request, browserAuth *sso.Handler, err error, name, provider string) *registrationAccessFailure {
+	var ce *contract.Error
+	if !errors.As(err, &ce) {
+		return nil
+	}
+	switch ce.Code {
+	case "GIT_CREDENTIAL_UNAVAILABLE", "GIT_AUTH_FAILED", "GIT_ACCESS_DENIED", "GIT_REPOSITORY_UNAVAILABLE":
+	default:
+		return nil
+	}
+	if provider == "" {
+		provider = service.DefaultCodeProvider
+	}
+	source, _ := codesources.Lookup(provider)
+	site := ""
+	if browserAuth != nil {
+		site = browserAuth.SiteURL(r)
+	}
+	out := &registrationAccessFailure{CodeProvider: provider}
+	// Without a personal identity (the service credential) only the global token applies.
+	if identity.UserID(r.Context()) == "" {
+		out.SettingsURL = site + Prefix + "/settings#code-source-tokens"
+		out.Guidance = fmt.Sprintf("%s cannot be fetched with the global %s token. A site administrator should set a global access token that can read it at %s, then register again. Nothing was registered.", name, source.Name, out.SettingsURL)
+	} else {
+		out.SettingsURL = site + Prefix + "/user-settings#code-source-tokens"
+		out.Guidance = fmt.Sprintf("%s cannot be fetched with your %s token or the global one. Bind a personal access token that can read it at %s, then register again. Nothing was registered.", name, source.Name, out.SettingsURL)
+	}
+	return out
 }
 
 // repositoryView adds who created and manages a repository, and whether the

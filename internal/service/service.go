@@ -33,13 +33,15 @@ type Store interface {
 	NextGeneration(context.Context) (uint32, error)
 }
 type Service struct {
-	gitTimeoutDefault   func() int
-	linkManifests       linkManifestCache
-	Plugins             *wasmplugin.Host
-	pluginSnapshots     sync.RWMutex
-	pluginCache         pluginCacheState
-	QueryLogs           *querylog.Log
-	Credentials         *codecredentials.Manager
+	gitTimeoutDefault func() int
+	linkManifests     linkManifestCache
+	Plugins           *wasmplugin.Host
+	pluginSnapshots   sync.RWMutex
+	pluginCache       pluginCacheState
+	QueryLogs         *querylog.Log
+	Credentials       *codecredentials.Manager
+	// AccessCheck replaces the remote probe of CheckAccess in tests.
+	AccessCheck         func(ctx context.Context, name, provider string) error
 	diskWake            chan struct{}
 	diskWakeOnce        sync.Once
 	storage             storageSlot
@@ -219,6 +221,10 @@ func (s *Service) RegisterWithGitTimeout(ctx context.Context, name string, p con
 	}
 	k, e := requestKey(identity.Actor(ctx)+":register", key)
 	if e != nil {
+		return control.Repository{}, e
+	}
+	// A new name must be fetchable with the tokens its registration will use.
+	if e := s.CheckRegistrationAccess(ctx, name, provider); e != nil {
 		return control.Repository{}, e
 	}
 	s.mu.Lock()

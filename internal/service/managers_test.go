@@ -20,7 +20,7 @@ func managerCode(err error) string {
 
 func TestUpdateManagers(t *testing.T) {
 	db := &sourceStore{repos: map[string]control.Repository{"org/repo": {Name: "org/repo", CreatorID: "creator", Revision: 3, Enabled: true}}}
-	s := &Service{DB: db, Root: t.TempDir()}
+	s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 	ctx := identity.WithActor(context.Background(), "sso:creator")
 
 	if _, err := s.UpdateManagers(ctx, "org/repo", ManagerChange{Add: "a", Remove: "b"}, 3); managerCode(err) != "INVALID_MANAGER_CHANGE" {
@@ -62,7 +62,7 @@ func TestUpdateManagers(t *testing.T) {
 
 func TestRegistrationRecordsTheCreatorAsManager(t *testing.T) {
 	db := &sourceStore{repos: map[string]control.Repository{}}
-	s := &Service{DB: db, Root: t.TempDir()}
+	s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 	ctx := identity.WithActor(context.Background(), "sso:creator")
 	r, err := s.RegisterWithProvider(ctx, "context4ai/agent-graph", control.Policy{Branches: []string{"main"}, Count: 10}, 60, "full", nil, nil, "github", "register")
 	if err != nil || r.CreatorID != "creator" || !r.IsManager("creator") {

@@ -127,18 +127,38 @@
   $('#f-sync-interval').addEventListener('change',()=>{$('#form-error').textContent='';});
   // A name registered by someone else may be hidden; point to its registrant instead.
   function taken(c){const who=c&&c.name?c.name+(c.email?' ('+c.email+')':''):'';return who?t('该仓库已由 '+who+' 登记。如需管理，请联系对方将你加入仓库管理员','This repository is already registered by '+who+'. To manage it, ask them to add you as a repository manager'):t('该仓库已登记。如需管理，请联系站点管理员将你加入仓库管理员','This repository is already registered. To manage it, ask a site administrator to add you as a repository manager');}
+  // Registration checks that the repository can be fetched with the caller's tokens before
+  // storing anything; the form stays locked meanwhile and keeps its content when it fails.
+  const ACCESS={
+    GIT_CREDENTIAL_UNAVAILABLE:['这个代码源还没有可用的访问令牌，无法拉取该仓库。请在用户设置里绑定你的个人访问令牌。','This code source has no usable access token, so the repository cannot be fetched. Bind your personal access token in user settings.'],
+    GIT_AUTH_FAILED:['代码服务拒绝了当前令牌，令牌可能已过期或被撤销。请在用户设置里更新你的个人访问令牌。','The code host rejected the token; it may have expired or been revoked. Update your personal access token in user settings.'],
+    GIT_ACCESS_DENIED:['当前可用的令牌没有读取该仓库的权限。请在用户设置里绑定能读取它的个人访问令牌。','The available tokens cannot read this repository. Bind a personal access token that can read it in user settings.'],
+    GIT_REPOSITORY_UNAVAILABLE:['找不到该仓库，或当前令牌看不到它。请先核对仓库名；仓库存在时，在用户设置里绑定能读取它的个人访问令牌。','Repository not found, or the token cannot see it. Check the name first; if it exists, bind a personal access token that can read it in user settings.'],
+    GIT_FETCH_FAILED:['暂时连不上代码服务，请稍后重新检查。','The code host cannot be reached right now; check again shortly.'],
+    ACCESS_CHECK_TIMEOUT:['代码服务没有及时响应，请稍后重新检查。','The code host did not answer in time; check again shortly.']};
+  let accessCode='';
+  function formStatus(text){$('#form-status').textContent=text;}
+  function lock(on,label){submitting=on;$('#form').inert=on;$('#form').setAttribute('aria-busy',String(on));document.querySelectorAll('#drawer [data-close]').forEach(b=>b.disabled=on);$('#submit').disabled=on;$('#submit').textContent=on?label:t('登记并准备','Register and prepare');}
+  function showAccess(code){
+    accessCode=code;$('#access-help').classList.toggle('hidden',!code);if(!code)return;
+    const token=!['GIT_FETCH_FAILED','ACCESS_CHECK_TIMEOUT'].includes(code);
+    $('#access-help-text').textContent=t(ACCESS[code][0],ACCESS[code][1])+(token?t('表单内容已保留，绑定后回到这里点「重新检查」。',' The form is kept; come back and choose Check again after binding.'):'');
+    $('#access-settings').classList.toggle('hidden',!token);
+  }
+  $('#access-settings').onclick=()=>{window.open('/sourcegraph/user-settings#code-source-tokens','_blank','noopener');$('#access-retry').focus();};
+  $('#access-retry').onclick=()=>submit();
   async function submit(e){if(e)e.preventDefault();if(submitting||!M.manage(canRegister())||!$('#form').reportValidity())return;let body;
     try {const name=M.repositoryName($('#f-name').value);if(rows.some(r=>r.name===name))throw new Error(t('该仓库已登记，请到详情页修改','This repository is already registered. Edit it from its details page'));body={name,git_timeout_minutes:M.gitTimeout($('#f-git-timeout').value),code_provider:$('#f-code-provider').value,index_mode:$('#f-index-mode').value,public_read:$('#f-ack').checked,policy:{branches:branchInput.value(),...(branchInput.usesDefault()?{default_branch:true}:{})},sync_interval_minutes:M.syncInterval($('#f-sync-interval').value)};if(body.index_mode==='monorepo')body.path_groups=pathInput.value();}
     catch(e){$('#form-error').textContent=e.message;return;}
-    submitting=true;$('#submit').disabled=true;$('#submit').textContent=t('提交中','Submitting');$('#form-error').textContent='';
+    $('#form-error').textContent='';showAccess('');lock(true,t('检查中','Checking'));formStatus(t('正在检查能否拉取该仓库，通过后登记…','Checking that the repository can be fetched, then registering…'));
     try {const r=await API.request('/api/admin/v1/repos',{method:'POST',body,headers:{'Idempotency-Key':keys.get(body)}});keys.done(body);A.toast(t('已登记，首轮同步已排队','Registered, first sync queued'));location.assign('/sourcegraph/repo?repo='+encodeURIComponent(r.name)+'&tab=jobs');}
-    catch(e){$('#form-error').textContent=e.code==='REPOSITORY_EXISTS'?taken(e.creator):M.error(e);}
-    finally{submitting=false;$('#submit').disabled=false;$('#submit').textContent=t('登记并准备','Register and prepare');}
+    catch(e){formStatus('');if(ACCESS[e.code])showAccess(e.code);else $('#form-error').textContent=e.code==='REPOSITORY_EXISTS'?taken(e.creator):M.error(e);}
+    finally{lock(false);}
   }
   $('#submit').onclick=submit;$('#form').onsubmit=submit;
   function filter(){managerChoice=$('#manager-filter-wrap').classList.contains('hidden')?managerChoice:$('#manager-filter').value;sortChoice=$('#sort').value;const p=new URLSearchParams();if($('#filter').value)p.set('q',$('#filter').value);if(managerChoice)p.set('manager',managerChoice);if(sortChoice)p.set('sort',sortChoice);if($('#show-deleted').checked)p.set('deleted','1');history.replaceState(null,'',location.pathname+(p.size?'?'+p:'')+location.hash);render();}
   $('#filter').oninput=filter;$('#show-deleted').onchange=filter;$('#manager-filter').onchange=filter;$('#sort').onchange=filter;
-  document.addEventListener('langchange',()=>{render();renderSyncInterval();branchInput.refresh();pathInput.refresh();});
+  document.addEventListener('langchange',()=>{render();if(accessCode)showAccess(accessCode);if(!submitting)$('#submit').textContent=t('登记并准备','Register and prepare');renderSyncInterval();branchInput.refresh();pathInput.refresh();});
   document.addEventListener('app:auth',render);
   const poller=M.poll(load,10000,60);
   App.ready.then(()=>{render();poller.refresh();if(initial.get('new')==='1'||location.hash==='#new')open();});

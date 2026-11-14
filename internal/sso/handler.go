@@ -226,6 +226,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // is host-only and the provider always returns to the configured address, so a
 // login started elsewhere cannot complete. The site's reverse proxy forwards the
 // original host; only the configured origin is ever used as a redirect target.
+// SiteURL is the configured site origin, for links in API responses.
+func (h *Handler) SiteURL(*http.Request) string {
+	return strings.TrimSuffix(h.config.Origin, "/")
+}
+
 func (h *Handler) siteLogin(r *http.Request) string {
 	site, err := url.Parse(h.config.Origin)
 	if err != nil || site.Host == "" {
