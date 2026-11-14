@@ -15,8 +15,9 @@ func remoteFailure(diagnostic, code, message string) error {
 		return contract.Fail("GIT_AUTH_FAILED", "Code-service credential was rejected; update the credential.", 401)
 	}
 	// Code hosts answer "not found" both for missing repositories and for private
-	// ones the credential cannot see, so the message names both causes.
-	if httpStatus(text, "404") || strings.Contains(text, "repository not found") || (strings.Contains(text, "repository '") && strings.Contains(text, "' not found")) {
+	// ones the credential cannot see, so the message names both causes. An
+	// anonymous request the host answers with a credential prompt means the same.
+	if httpStatus(text, "404") || strings.Contains(text, "could not read username") || strings.Contains(text, "repository not found") || (strings.Contains(text, "repository '") && strings.Contains(text, "' not found")) {
 		return contract.Fail("GIT_REPOSITORY_UNAVAILABLE", "Repository not found, or the code-service credential used cannot see it.", 404)
 	}
 	return contract.Fail(code, message, 503)
