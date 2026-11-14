@@ -102,6 +102,10 @@ Repository details (`/sourcegraph/v1/repo/availability`, `GET /sourcegraph/api/a
 
 Fetching a user-registered repository uses the same credentials as any other: the creator's own code-source token first, then the site-wide token. Turning the setting on therefore lets signed-in users register any repository the site-wide token can read. Fetch failures name the cause (`GIT_REPOSITORY_UNAVAILABLE` for a missing repository or one the token cannot see, `GIT_ACCESS_DENIED`, `GIT_AUTH_FAILED`, `GIT_CREDENTIAL_UNAVAILABLE`, `GIT_FETCH_FAILED`), and the website links to the creator's code-source token settings.
 
+Registering a new repository first checks that it can be fetched: the service lists the remote HEAD with the credentials the registration will use (the caller's personal token, then the site-wide token, then anonymous where the source allows it), outside the registration lock, sharing the remote-lookup concurrency slots and waiting at most 20 seconds. A failed check stores nothing and returns the fetch codes above, or retryable 504 `ACCESS_CHECK_TIMEOUT`. For the four credential failures the error body also carries `code_provider`, `settings_url` and an English `guidance` sentence: a signed-in caller is pointed at User settings → Code source tokens, the service credential (which has no personal token) at the site-wide token in system settings. A name that already exists is not checked and keeps its replay or 409 `REPOSITORY_EXISTS` answer. `POST /api/admin/v1/repos/access-check` with `{name, code_provider}` runs the same check without registering, with the same permission and error fields, and returns `{name, accessible: true}` when the repository is readable.
+
+The registration form stays locked while the check runs and keeps its input when it fails. Credential failures offer to open the code-source token settings in a new window and a Check again button that resubmits with the same idempotency key; an unreachable host or a timeout offers Check again only.
+
 ### Code sources
 
 Code sources, their settings and token order are described in [code sources and tokens](code-sources.md).

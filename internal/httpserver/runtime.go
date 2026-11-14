@@ -272,6 +272,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 		var result any
 		var err error
 		var existsCreator *sso.Person
+		var accessHelp *registrationAccessFailure
 		decode := func(v any) bool {
 			b, e := io.ReadAll(http.MaxBytesReader(w, r.Body, c.MaxBodyBytes))
 			if e == nil {
@@ -336,6 +337,7 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 						}
 						var row control.Repository
 						row, err = s.RegisterWithGitTimeout(r.Context(), q.Name, policy, interval, q.IndexMode, q.PathGroups, q.PublicRead, q.CodeProvider, q.GitTimeoutMinutes, r.Header.Get("Idempotency-Key"))
+						accessHelp = accessFailure(r, browserAuth, err, q.Name, q.CodeProvider)
 						result = row
 						// A taken name names its registrant, so the caller can ask to become a manager.
 						var ce *contract.Error
@@ -348,6 +350,19 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				}
 			} else {
 				err = contract.Fail("METHOD_NOT_ALLOWED", "Use GET.", 405)
+			}
+		case Prefix + "/api/admin/v1/repos/access-check":
+			if method("POST") {
+				var q struct {
+					Name         string `json:"name"`
+					CodeProvider string `json:"code_provider"`
+				}
+				if decode(&q) {
+					if err = s.CheckAccess(r.Context(), q.Name, q.CodeProvider); err == nil {
+						result = map[string]any{"name": q.Name, "accessible": true}
+					}
+					accessHelp = accessFailure(r, browserAuth, err, q.Name, q.CodeProvider)
+				}
 			}
 		case Prefix + "/v1/repo/plugins":
 			if r.Method == "GET" {
@@ -517,7 +532,10 @@ func runtime(c config.Config, log *slog.Logger, s *service.Service, token string
 				if ce.RetryAfterSeconds > 0 {
 					w.Header().Set("Retry-After", strconv.Itoa(ce.RetryAfterSeconds))
 				}
-				if existsCreator != nil {
+				if accessHelp != nil {
+					accessHelp.ErrorResponse = contract.ErrorResponse{Error: ce.Message, Meta: contract.Meta{Protocol: "zoekt-single-repo-v1", RequestID: id, Status: "error", Code: ce.Code}}
+					writeJSON(w, status, accessHelp)
+				} else if existsCreator != nil {
 					writeJSON(w, status, registrationConflict{ErrorResponse: contract.ErrorResponse{Error: ce.Message, Meta: contract.Meta{Protocol: "zoekt-single-repo-v1", RequestID: id, Status: "error", Code: ce.Code}}, Creator: existsCreator})
 				} else {
 					writeError(w, id, status, ce.Code, ce.Message)

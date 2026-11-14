@@ -41,7 +41,7 @@ func TestGitTimeoutInheritanceAndTaskSnapshot(t *testing.T) {
 func TestGitTimeoutUpdatePreservesWorkAndVersions(t *testing.T) {
 	policy := control.Policy{Branches: []string{"main"}, Count: 10}
 	db := &managementStore{repo: control.Repository{Name: "org/repo", Enabled: true, Revision: 4, PolicyRevision: 2, Policy: policy, Versions: []control.Version{{Commit: "1111111111111111111111111111111111111111", Generation: 3}}, Jobs: []control.Job{{State: "running", Kind: "sync"}}}}
-	s := &Service{DB: db, Root: t.TempDir()}
+	s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 	for _, n := range []int{30, 60, 0} {
 		u := Update{Policy: policy, Enabled: true, GitTimeoutMinutes: &n}
 		u.Preview = preview(db.repo, u)
@@ -90,7 +90,7 @@ func TestWorkerUsesConfiguredGitBudget(t *testing.T) {
 			if !ok {
 				t.Fatal("claim")
 			}
-			s := &Service{DB: db, Root: t.TempDir()}
+			s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 			global := n
 			s.UseGitTimeoutDefault(func() int { return global })
 			called := false
@@ -116,7 +116,7 @@ func TestWorkerUsesConfiguredGitBudget(t *testing.T) {
 
 func TestGitTimeoutRegistrationIdempotency(t *testing.T) {
 	db := &sourceStore{repos: map[string]control.Repository{}}
-	s := &Service{DB: db, Root: t.TempDir()}
+	s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 	policy := control.Policy{Branches: []string{"main"}, Count: 10}
 	register := func(n int) (control.Repository, error) {
 		return s.RegisterWithGitTimeout(context.Background(), "org/repo", policy, 5, "full", nil, nil, "github", n, "timeout-registration")

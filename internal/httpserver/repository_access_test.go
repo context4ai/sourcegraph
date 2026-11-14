@@ -136,6 +136,8 @@ type site struct {
 	settings *sitesettings.Service
 	db       *repositories
 	people   *people
+	// access is what the registration access check answers; nil means reachable.
+	access error
 }
 
 // fakeIssuer serves just enough OIDC discovery for sso.New; no login runs.
@@ -177,7 +179,9 @@ func newSite(t *testing.T, users map[string]string, admins ...string) *site {
 		t.Fatal(err)
 	}
 	t.Cleanup(s.Close)
-	return &site{t: t, handler: RuntimeWithSettings(config.Defaults(), slog.New(slog.NewTextHandler(io.Discard, nil)), s, strings.Repeat("t", 32), settings, auth), settings: settings, db: db, people: store}
+	st := &site{t: t, handler: RuntimeWithSettings(config.Defaults(), slog.New(slog.NewTextHandler(io.Discard, nil)), s, strings.Repeat("t", 32), settings, auth), settings: settings, db: db, people: store}
+	s.AccessCheck = func(context.Context, string, string) error { return st.access }
+	return st
 }
 
 // call sends a browser request as user (empty for anonymous) and decodes the JSON body.
@@ -229,6 +233,13 @@ func TestOrdinaryUsersRegisterAndManageTheirRepositories(t *testing.T) {
 	}
 	if _, policy := s.call("", "GET", "/sourcegraph/access-policy", ""); policy["user_repositories"] != false {
 		t.Fatalf("access policy while off: %v", policy)
+	}
+	// The pre-registration access check follows the same permission.
+	if code, body := s.call(alice, "POST", "/sourcegraph/api/admin/v1/repos/access-check", `{"name":"context4ai/agent-graph","code_provider":"github"}`); code != 403 || errorCode(body) != "REGISTRATION_DISABLED" {
+		t.Fatalf("access check while off: %d %v", code, body)
+	}
+	if code, body := s.call(admin, "POST", "/sourcegraph/api/admin/v1/repos/access-check", `{"name":"not a repository","code_provider":"github"}`); code != 400 {
+		t.Fatalf("access check validates the name: %d %v", code, body)
 	}
 
 	s.allowUsers(true)
@@ -358,6 +369,40 @@ func TestServiceCredentialRegistersWhileUserRegistrationIsOff(t *testing.T) {
 	s.handler.ServeHTTP(w, r)
 	if w.Code != 202 {
 		t.Fatalf("service registration: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegistrationRejectsUnfetchableRepositoriesWithSettingsLink(t *testing.T) {
+	admin, alice := hexID("admin"), hexID("alice")
+	s := newSite(t, map[string]string{"admin": admin, "alice": alice}, admin)
+	s.allowUsers(true)
+	s.access = contract.Fail("GIT_REPOSITORY_UNAVAILABLE", "Repository not found, or the code-service credential used cannot see it.", 404)
+	for path, request := range map[string]string{"/sourcegraph/api/admin/v1/repos": register, "/sourcegraph/api/admin/v1/repos/access-check": `{"name":"context4ai/agent-graph","code_provider":"github"}`} {
+		code, body := s.call(alice, "POST", path, request, "Idempotency-Key", "register-denied")
+		url, _ := body["settings_url"].(string)
+		guidance, _ := body["guidance"].(string)
+		if code != 404 || errorCode(body) != "GIT_REPOSITORY_UNAVAILABLE" || !strings.HasSuffix(url, "/sourcegraph/user-settings#code-source-tokens") || !strings.Contains(guidance, url) || body["code_provider"] != "github" {
+			t.Fatalf("%s: %d %v", path, code, body)
+		}
+	}
+	if _, err := s.db.Get(context.Background(), "context4ai/agent-graph"); err == nil {
+		t.Fatal("unfetchable repository was registered")
+	}
+	// The service credential has no personal token; it is pointed at the global one.
+	r := httptest.NewRequest("POST", "/sourcegraph/api/admin/v1/repos", strings.NewReader(register))
+	r.Header.Set("Authorization", "Bearer "+strings.Repeat("t", 32))
+	r.Header.Set("Idempotency-Key", "register-svc")
+	w := httptest.NewRecorder()
+	s.handler.ServeHTTP(w, r)
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if url, _ := body["settings_url"].(string); w.Code != 404 || !strings.HasSuffix(url, "/sourcegraph/settings#code-source-tokens") {
+		t.Fatalf("service credential: %d %s", w.Code, w.Body.String())
+	}
+	// Other failures carry no settings link.
+	s.access = contract.Fail("GIT_FETCH_FAILED", "Cannot reach the repository on the code host.", 503)
+	if code, body := s.call(alice, "POST", "/sourcegraph/api/admin/v1/repos", register, "Idempotency-Key", "register-down"); code != 503 || body["settings_url"] != nil {
+		t.Fatalf("unreachable host: %d %v", code, body)
 	}
 }
 

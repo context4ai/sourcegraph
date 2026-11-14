@@ -43,6 +43,9 @@ func (s *Service) withGitCredential(ctx context.Context, r control.Repository, o
 // defaultCodeProvider is the provider of repositories registered before providers were recorded.
 const defaultCodeProvider = "github"
 
+// DefaultCodeProvider is the code source of registrations that omit code_provider.
+const DefaultCodeProvider = defaultCodeProvider
+
 // fetchOptions uses the host pinned at registration; the source still supplies username and anonymous access.
 func (s *Service) fetchOptions(r control.Repository, token string) gitstore.FetchOptions {
 	provider := r.CodeProvider

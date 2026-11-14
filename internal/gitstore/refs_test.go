@@ -212,3 +212,18 @@ func TestInvalidateRetentionFailsClosed(t *testing.T) {
 		t.Fatal("inaccessible repository treated as having no marker")
 	}
 }
+
+func TestCheckRemoteAccess(t *testing.T) {
+	s, o, _ := refFixture(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	if err := s.InitScratch(ctx, dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CheckRemoteAccess(ctx, dir, "org/repo", o); err != nil {
+		t.Fatalf("readable: %v", err)
+	}
+	if err := s.CheckRemoteAccess(ctx, dir, "org/missing", o); err == nil {
+		t.Fatal("missing repository passed the access check")
+	}
+}

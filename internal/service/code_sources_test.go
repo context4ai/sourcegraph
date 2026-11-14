@@ -45,7 +45,7 @@ func (db *sourceStore) List(_ context.Context, after string, limit int) ([]contr
 
 func TestRegistrationPinsTheSourceHost(t *testing.T) {
 	db := &sourceStore{repos: map[string]control.Repository{}}
-	s := &Service{DB: db, Root: t.TempDir()}
+	s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 	policy := control.Policy{Branches: []string{"main"}, Count: 10}
 	r, err := s.RegisterWithProvider(context.Background(), "context4ai/agent-graph", policy, 60, "full", nil, nil, "github", "register-github")
 	if err != nil || r.CodeHost != "https://github.com" || db.repos["context4ai/agent-graph"].CodeHost != "https://github.com" {
@@ -65,7 +65,7 @@ func TestPinCodeHostsKeepsExistingRepositoriesOnTheirHost(t *testing.T) {
 		"group/old":   {ID: "1", Name: "group/old", Revision: 1},
 		"group/moved": {ID: "2", Name: "group/moved", CodeProvider: "git", CodeHost: "https://old.example.com", Revision: 1},
 	}}
-	s := &Service{DB: db, Root: t.TempDir()}
+	s := &Service{DB: db, Root: t.TempDir(), AccessCheck: reachable}
 	s.PinCodeHosts(context.Background(), nil)
 	if db.repos["group/old"].CodeHost != "https://github.com" {
 		t.Fatalf("unpinned repository = %#v", db.repos["group/old"])
